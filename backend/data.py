@@ -23,6 +23,9 @@ from unicodedata import category, normalize
 import geopandas as gpd
 import pandas as pd
 
+from pathlib import Path
+_ROOT = Path(__file__).resolve().parent.parent
+
 # ---------------------------------------------------------------------------
 # SOURCES DE DONNÉES (data.gouv.fr)
 # ---------------------------------------------------------------------------
@@ -68,7 +71,7 @@ MAPPING_ID_COLONNE = {
 # CHEMINS LOCAUX
 # ---------------------------------------------------------------------------
 
-_BASE = "N:/DST/Carto/INTERACTIVITE/raphael/carte/data/admin"
+_BASE = str(_ROOT / "data" / "admin")
 
 COMMUNES_CENTROIDE    = f"{_BASE}/centroide-4326_com.geojson"
 COMMUNES_POLYGONE     = f"{_BASE}/polygone-4326_com.geojson"
@@ -356,7 +359,7 @@ def rechercher_entites(q: str, types: list[str] | None = None) -> list[dict]:
 
 TYPOLOGIES: dict[str, dict] = {
     "centralite": {
-        "chemin": r"N:\DST\Carto\INTERACTIVITE\raphael\carte\data\grilles\centralite.csv",
+        "chemin": str(_ROOT / "data" / "grilles" / "centralite.csv"),
         "col":    "niveau_centralite",
         "ordre":  [
             "Communes non centre",
@@ -367,7 +370,7 @@ TYPOLOGIES: dict[str, dict] = {
         ],
     },
     "densite": {
-        "chemin": r"N:\DST\Carto\INTERACTIVITE\raphael\carte\data\grilles\densite.csv",
+        "chemin": str(_ROOT / "data" / "grilles" / "densite.csv"),
         "col":    "niveau_densite",
         "ordre":  [
             "Rural à habitat très dispersé",
@@ -380,7 +383,7 @@ TYPOLOGIES: dict[str, dict] = {
         ],
     },
     "ruralite": {
-        "chemin": r"N:\DST\Carto\INTERACTIVITE\raphael\carte\data\grilles\ruralite.csv",
+        "chemin": str(_ROOT / "data" / "grilles" / "ruralite.csv"),
         "col":    "niveau_ruralite",
         "ordre":  None,  # ordre alphabétique par défaut
     },

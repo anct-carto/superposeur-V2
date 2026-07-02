@@ -44,7 +44,7 @@ from data import (
 
 app = FastAPI()
 
-BASE_DIR = Path("N:/DST/Carto/INTERACTIVITE/raphael/carte")
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Compression GZip automatique pour toutes les réponses JSON/texte > 1 ko
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -61,7 +61,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 @app.get("/")
 def root():
-    return FileResponse(BASE_DIR / "frontend" / "index.html")
+    return FileResponse(BASE_DIR / "index.html")
 
 
 # ---------------------------------------------------------------------------
