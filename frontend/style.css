@@ -1,0 +1,843 @@
+/*
+ * ============================================================
+ * STYLE.CSS — Croisement Programmes ANCT
+ * ============================================================
+ * Organisation :
+ *   1. Reset global
+ *   2. Variables de design (tokens)
+ *   3. Typography & corps de page
+ *   4. Focus clavier
+ *   5. Bandeau (#header)
+ *   6. Navigation & menus déroulants
+ *   7. Zone principale (#main) & carte (#map)
+ *   8. Contrôles superposés (ctrl-*)
+ *   9. Barre de recherche
+ *  10. Légende (programmes & dispositifs)
+ *  11. Boutons icônes
+ *  12. Panneau latéral (#panel)
+ *  13. Graphiques
+ *  14. Sélecteur de typologie
+ *  15. Miniatures de fond de carte
+ *  16. Popups MapLibre
+ *  17. Contrôles natifs MapLibre
+ *  18. Bouton slider (poignée)
+ *  19. Boutons export (bas gauche)
+ *
+ * Raphaël Roumeau — Mai 2026
+ * ============================================================
+ */
+
+
+/* ============================================================
+   1. RESET GLOBAL
+   ============================================================ */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin:     0;
+    padding:    0;
+}
+
+
+/* ============================================================
+   2. VARIABLES DE DESIGN (TOKENS)
+   ============================================================ */
+:root {
+    /* --- Couleurs --- */
+    --color-accent:       #003189;   /* Bleu ANCT — couleur principale */
+    --color-accent-light: #d6dff5;   /* Bleu pâle — hover/actif léger */
+    --color-focus-ring:   #0050c8;   /* Bleu focus clavier */
+    --color-border:       #e0e0e0;   /* Bordures neutres */
+    --color-bg:           #ffffff;   /* Fond blanc */
+    --color-bg-light:     #f7f8fa;   /* Fond légèrement teinté */
+    --color-bg-hover:     #f0f2f7;   /* Fond au survol */
+    --color-text-main:    #1a1a2e;   /* Texte principal — presque noir */
+    --color-text-muted:   #4a4a6a;   /* Texte secondaire */
+    --color-text-light:   #7a7a9a;   /* Texte tertiaire / placeholders */
+    --color-shadow:       rgba(0, 49, 137, 0.10); /* Ombre teintée accent */
+
+    /* --- Dimensions structurelles --- */
+    --header-height:      72px;
+    --panel-width:        600px;
+    --ctrl-gap:           8px;       /* Espacement entre boutons de contrôle */
+    --border-radius-sm:   4px;
+    --border-radius-md:   8px;
+
+    /* --- Transitions --- */
+    --transition-fast:    0.15s ease;
+    --transition-panel:   width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-tab:     right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* --- Ombres portées --- */
+    --shadow-card:        0 2px 8px var(--color-shadow);
+    --shadow-dropdown:    0 6px 20px rgba(0, 49, 137, 0.14);
+
+    /* --- Typographie --- */
+    --font-main:          Marianne, system-ui, sans-serif;
+    --font-size-xs:       11px;
+    --font-size-sm:       13px;
+    --font-size-base:     14px;
+    --font-size-md:       15px;
+}
+
+
+/* ============================================================
+   3. TYPOGRAPHY & CORPS DE PAGE
+   ============================================================ */
+body {
+    font-family: var(--font-main);
+    font-size:   var(--font-size-base);
+    color:       var(--color-text-main);
+    background:  var(--color-bg);
+    display:     flex;
+    flex-direction: column;
+    height:      100vh;
+    overflow:    hidden;
+    line-height: 1.5;
+}
+
+
+/* ============================================================
+   4. FOCUS CLAVIER
+   Règle universelle garantissant la visibilité du focus
+   sur tous les éléments interactifs.
+   ============================================================ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+    outline:        2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius:  var(--border-radius-sm);
+}
+
+/* Focus sur le conteneur label (checkboxes/radios) */
+label:focus-within {
+    outline:        2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius:  var(--border-radius-sm);
+}
+
+
+/* ============================================================
+   5. BANDEAU (#header)
+   ============================================================ */
+#header {
+    height:          var(--header-height);
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    padding:         0 48px;
+    background:      var(--color-bg);
+    border-bottom:   1px solid var(--color-border);
+    flex-shrink:     0;
+    z-index:         50;
+}
+
+/* Logo — zone cliquable avec hover discret */
+#logo a {
+    display:        flex;
+    align-items:    center;
+    padding:        4px 6px;
+    border-radius:  var(--border-radius-sm);
+    transition:     background var(--transition-fast);
+}
+
+#logo a:hover {
+    background: var(--color-bg-hover);
+}
+
+
+/* ============================================================
+   6. NAVIGATION & MENUS DÉROULANTS
+   ============================================================ */
+nav {
+    display:     flex;
+    align-items: center;
+    gap:         2px;
+}
+
+/* Liens de navigation de premier niveau */
+nav > a,
+nav > .dropdown > a {
+    font-size:      var(--font-size-sm);
+    color:          var(--color-text-muted);
+    text-decoration: none;
+    padding:        6px 10px;
+    border-radius:  var(--border-radius-sm);
+    transition:     background var(--transition-fast), color var(--transition-fast);
+}
+
+/* Lien avec icône chevron (menu déroulant) */
+nav > .dropdown > a {
+    display:     flex;
+    align-items: center;
+    gap:         4px;
+}
+
+nav > a:hover,
+nav > .dropdown > a:hover {
+    background: var(--color-bg-hover);
+    color:      var(--color-accent);
+}
+
+/* Conteneur du menu déroulant */
+.dropdown {
+    position: relative;
+    display:  flex;
+    align-items: center;
+}
+
+/* Panneau du menu déroulant */
+.dropdown-menu {
+    display:       none;
+    position:      absolute;
+    top:           calc(100% + 4px);
+    left:          0;
+    min-width:     220px;
+    max-height:    340px;
+    overflow-y:    auto;
+    background:    var(--color-bg);
+    border:        1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    box-shadow:    var(--shadow-dropdown);
+    z-index:       100;
+    /* Scroll discret */
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+}
+
+/* Liens du menu déroulant */
+.dropdown-menu a {
+    display:         block;
+    padding:         9px 14px;
+    font-size:       var(--font-size-sm);
+    color:           var(--color-text-muted);
+    text-decoration: none;
+    border-bottom:   1px solid #f0f0f6;
+    transition:      background var(--transition-fast), color var(--transition-fast);
+}
+
+.dropdown-menu a:last-child {
+    border-bottom: none;
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu a.active {
+    background: var(--color-bg-hover);
+    color:      var(--color-accent);
+}
+
+/* Ouverture au survol ou au focus clavier */
+.dropdown:hover .dropdown-menu,
+.dropdown:focus-within .dropdown-menu {
+    display: block;
+}
+
+
+/* ============================================================
+   7. ZONE PRINCIPALE (#main) & CARTE (#map)
+   ============================================================ */
+#main {
+    display:  flex;
+    flex:     1;
+    position: relative;
+    overflow: hidden;
+}
+
+/* La carte occupe tout l'espace disponible */
+#map {
+    flex:   1;
+    height: 100%;
+}
+
+
+/* ============================================================
+   8. CONTRÔLES SUPERPOSÉS (ctrl-*)
+   Positionnement commun aux trois zones de contrôles.
+   ============================================================ */
+#ctrl-top-left,
+#ctrl-top-right,
+#ctrl-bottom-left {
+    position:        absolute;
+    z-index:         20;
+    display:         flex;
+    flex-direction:  column;
+    gap:             var(--ctrl-gap);
+}
+
+/* --- Haut gauche : recherche + légende --- */
+#ctrl-top-left {
+    top:  16px;
+    left: 16px;
+    /* Grille : colonne bouton légende | colonne barre de recherche */
+    display:               grid;
+    grid-template-columns: auto 300px;
+    grid-template-rows:    auto auto auto;
+    gap:                   var(--ctrl-gap);
+    align-items:           start;
+}
+
+/* Placement dans la grille */
+#btn-legende   { grid-column: 1; grid-row: 1; align-self: stretch; }
+#search-box    { grid-column: 2; grid-row: 1; }
+#search-results{ grid-column: 1 / -1; grid-row: 2; }
+#legende       { grid-column: 1 / -1; grid-row: 3; }
+
+/* --- Haut droite : couches --- */
+#ctrl-top-right {
+    top:   16px;
+    right: 16px;
+    align-items:  flex-end;
+    transition:   right var(--transition-tab); /* Se décale quand le panel s'ouvre */
+}
+
+/* --- Bas gauche : exports --- */
+#ctrl-bottom-left {
+    bottom: 32px;
+    left:   16px;
+    flex-direction: row; /* Boutons côte à côte */
+    gap:    6px;
+}
+
+
+/* ============================================================
+   9. BARRE DE RECHERCHE
+   ============================================================ */
+#search-box {
+    display:       flex;
+    align-items:   center;
+    background:    var(--color-bg);
+    border:        1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    box-shadow:    var(--shadow-card);
+    overflow:      hidden;
+    transition:    box-shadow var(--transition-fast);
+}
+
+/* Ring de focus sur le conteneur (pas sur l'input) */
+#search-box:focus-within {
+    outline:        2px solid var(--color-focus-ring);
+    outline-offset: 1px;
+    box-shadow:     0 0 0 3px var(--color-accent-light);
+}
+
+#search-input {
+    flex:        1;
+    padding:     9px 12px;
+    font-size:   var(--font-size-sm);
+    font-family: var(--font-main);
+    border:      none;
+    outline:     none;
+    background:  transparent;
+    color:       var(--color-text-main);
+    min-width:   0; /* Évite le dépassement en flexbox */
+}
+
+#search-input::placeholder {
+    color: var(--color-text-light);
+}
+
+/* Bouton loupe */
+#search-btn {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    padding:         0 12px;
+    height:          100%;
+    background:      none;
+    border:          none;
+    border-left:     1px solid var(--color-border);
+    cursor:          pointer;
+    color:           var(--color-text-light);
+    transition:      color var(--transition-fast), background var(--transition-fast);
+}
+
+#search-btn:hover {
+    color:       var(--color-accent);
+    background:  var(--color-bg-hover);
+}
+
+/* Bouton réinitialisation (×) — s'affiche après une sélection */
+#btn-reset {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    padding:         0 10px;
+    height:          100%;
+    background:      none;
+    border:          none;
+    border-left:     1px solid var(--color-border);
+    cursor:          pointer;
+    color:           var(--color-text-light);
+    transition:      color var(--transition-fast), background var(--transition-fast);
+}
+
+#btn-reset:hover {
+    color:      var(--color-accent);
+    background: var(--color-bg-hover);
+}
+
+/* Liste des résultats de recherche */
+#search-results {
+    list-style:    none;
+    background:    var(--color-bg);
+    border:        1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    box-shadow:    var(--shadow-card);
+    max-height:    240px;
+    overflow-y:    auto;
+    display:       none; /* Remplacé par .visible */
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+}
+
+#search-results.visible {
+    display: block;
+}
+
+#search-results li {
+    padding:       9px 14px;
+    font-size:     var(--font-size-sm);
+    cursor:        pointer;
+    border-bottom: 1px solid #f0f0f6;
+    transition:    background var(--transition-fast);
+}
+
+#search-results li:last-child {
+    border-bottom: none;
+}
+
+#search-results li:hover {
+    background: var(--color-bg-hover);
+}
+
+/* Libellé du type de territoire (Commune, EPCI…) */
+#search-results li span {
+    color:     var(--color-text-light);
+    font-size: 0.85em;
+    margin-left: 4px;
+}
+
+
+/* ============================================================
+   10. LÉGENDE (programmes & dispositifs)
+   ============================================================ */
+
+/* Panneau légende et panneau couches — style de carte partagé */
+#legende,
+#panneau-couches {
+    background:    var(--color-bg);
+    border:        1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    box-shadow:    var(--shadow-card);
+    padding:       14px 16px;
+    font-size:     var(--font-size-sm);
+}
+
+#legende {
+    max-height:      440px;
+    overflow-y:      auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+}
+
+#panneau-couches {
+    min-width: 230px;
+}
+
+/* Titre de panneau */
+#legende h4,
+#panneau-couches h4 {
+    font-size:     var(--font-size-sm);
+    font-weight:   600;
+    color:         var(--color-text-main);
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* En-tête de groupe thématique */
+.legende-groupe {
+    display:         flex;
+    align-items:     center;
+    gap:             6px;
+    font-size:       var(--font-size-xs);
+    font-weight:     700;
+    text-transform:  uppercase;
+    letter-spacing:  0.07em;
+    color:           var(--color-text-light);
+    margin-top:      14px;
+    margin-bottom:   4px;
+    padding-bottom:  4px;
+    border-bottom:   1px solid var(--color-border);
+}
+
+.legende-groupe:first-of-type {
+    margin-top: 4px;
+}
+
+/* Icône du groupe */
+.legende-groupe svg {
+    width:     13px;
+    height:    13px;
+    flex-shrink: 0;
+}
+
+/* Ligne d'item (checkbox + pastille + label) */
+.legende-item {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+    padding:     4px 4px;
+    cursor:      pointer;
+    font-size:   var(--font-size-sm);
+    border-radius: var(--border-radius-sm);
+    transition:  background var(--transition-fast);
+}
+
+.legende-item:hover {
+    background: var(--color-bg-hover);
+}
+
+/* Cases à cocher et boutons radio */
+.legende-item input[type="checkbox"],
+.legende-item input[type="radio"] {
+    cursor:      pointer;
+    width:       14px;
+    height:      14px;
+    flex-shrink: 0;
+    accent-color: var(--color-accent);
+}
+
+/* Pastille carrée de couleur (programmes et couches polygones) */
+.legende-carre {
+    display:      inline-block;
+    width:        12px;
+    height:       12px;
+    border-radius: 2px;
+    flex-shrink:  0;
+}
+
+.legende-label {
+    line-height: 1.4;
+    color:       var(--color-text-muted);
+}
+
+
+/* ============================================================
+   11. BOUTONS ICÔNES (contrôles carte)
+   Style partagé pour tous les boutons flottants sur la carte.
+   ============================================================ */
+#btn-legende,
+#btn-couches,
+#btn-imprimer,
+#btn-exporter {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    gap:             6px;
+    padding:         0 12px;
+    min-height:      36px;
+    font-size:       var(--font-size-sm);
+    font-family:     var(--font-main);
+    font-weight:     500;
+    background:      var(--color-bg);
+    border:          1px solid var(--color-border);
+    border-radius:   var(--border-radius-sm);
+    box-shadow:      var(--shadow-card);
+    cursor:          pointer;
+    color:           var(--color-text-muted);
+    transition:      background var(--transition-fast), color var(--transition-fast),
+                     box-shadow var(--transition-fast);
+    white-space:     nowrap;
+}
+
+#btn-legende:hover,
+#btn-couches:hover,
+#btn-imprimer:hover,
+#btn-exporter:hover {
+    background:  var(--color-bg-hover);
+    color:       var(--color-accent);
+    box-shadow:  0 4px 12px var(--color-shadow);
+}
+
+/* Bouton désactivé pendant un export */
+#btn-imprimer:disabled,
+#btn-exporter:disabled {
+    opacity: 0.5;
+    cursor:  not-allowed;
+}
+
+/* Icônes SVG dans les boutons */
+#btn-legende svg,
+#btn-couches svg,
+#btn-imprimer svg,
+#btn-exporter svg {
+    width:     16px;
+    height:    16px;
+    flex-shrink: 0;
+}
+
+
+/* ============================================================
+   12. PANNEAU LATÉRAL (#panel)
+   ============================================================ */
+
+/* Poignée du panneau (bouton slider) */
+#slider-tab {
+    position:       absolute;
+    right:          0;
+    top:            50%;
+    transform:      translateY(-50%);
+    width:          20px;
+    height:         56px;
+    padding:        0;
+    background:     var(--color-bg);
+    border:         1px solid var(--color-border);
+    border-right:   none;
+    border-radius:  6px 0 0 6px;
+    color:          var(--color-text-light);
+    cursor:         ew-resize;
+    z-index:        30;
+    transition:     right var(--transition-tab), background var(--transition-fast);
+    box-shadow:     -2px 0 8px var(--color-shadow);
+}
+
+#slider-tab:hover {
+    background: var(--color-bg-hover);
+    color:      var(--color-accent);
+}
+
+/* Panneau — fermé par défaut (width: 0) */
+#panel {
+    width:       0;
+    overflow:    hidden;
+    transition:  var(--transition-panel);
+    background:  var(--color-bg);
+    border-left: 1px solid var(--color-border);
+    flex-shrink: 0;
+    position:    relative;
+}
+
+/* Panneau ouvert */
+#panel.open {
+    width: var(--panel-width);
+}
+
+/* Contenu intérieur du panneau (scroll interne) */
+#panel-inner {
+    width:       var(--panel-width);
+    height:      100%;
+    padding:     16px 18px;
+    display:     flex;
+    flex-direction: column;
+    gap:         10px;
+    overflow-y:  auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
+}
+
+/* Titre du territoire sélectionné */
+#territoire {
+    text-align:    center;
+    font-size:     var(--font-size-md);
+    font-weight:   700;
+    color:         var(--color-accent);
+    padding:       8px 0 10px;
+    border-bottom: 2px solid var(--color-accent);
+    margin-bottom: 4px;
+    letter-spacing: 0.01em;
+}
+
+/* Titres de sections du panneau */
+#panel-inner h3 {
+    font-size:      var(--font-size-sm);
+    font-weight:    600;
+    color:          var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom:  1px solid var(--color-border);
+    padding-bottom: 4px;
+}
+
+
+/* ============================================================
+   13. GRAPHIQUES
+   ============================================================ */
+
+/* Wrapper assurant une hauteur fixe */
+.chart-wrapper {
+    position:   relative;
+    width:      100%;
+    height:     240px;
+    flex-shrink: 0;
+}
+
+/* Les canvas doivent remplir leur wrapper */
+#chart-barres,
+#chart-colonnes {
+    width:  100% !important;
+    height: 100% !important;
+}
+
+
+/* ============================================================
+   14. SÉLECTEUR DE TYPOLOGIE
+   ============================================================ */
+#typo-dropdown {
+    position: relative;
+    display:  block;
+    width:    100%;
+}
+
+/* Déclencheur du dropdown de typo */
+#typo-dropdown > a {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             8px;
+    width:           100%;
+    padding:         7px 10px;
+    font-size:       var(--font-size-sm);
+    color:           var(--color-text-muted);
+    text-decoration: none;
+    background:      var(--color-bg);
+    border:          1px solid var(--color-border);
+    border-radius:   var(--border-radius-sm);
+    cursor:          pointer;
+    transition:      background var(--transition-fast), color var(--transition-fast),
+                     border-color var(--transition-fast);
+}
+
+#typo-dropdown > a:hover {
+    background:    var(--color-bg-hover);
+    color:         var(--color-accent);
+    border-color:  var(--color-accent);
+}
+
+/* Label tronqué si trop long */
+#typo-label {
+    overflow:      hidden;
+    text-overflow: ellipsis;
+    white-space:   nowrap;
+    flex:          1;
+}
+
+/* Menu du dropdown de typo — pleine largeur */
+#typo-dropdown .dropdown-menu {
+    width: 100%;
+    top:   calc(100% + 2px);
+}
+
+#typo-dropdown:hover .dropdown-menu,
+#typo-dropdown:focus-within .dropdown-menu {
+    display: block;
+}
+
+/* Légende numérotée sous le graphique colonnes */
+#chart-colonnes-legend {
+    font-size:   var(--font-size-xs);
+    color:       var(--color-text-muted);
+    line-height: 1.6;
+}
+
+#chart-colonnes-legend .legend-grid {
+    display:               grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap:                   6px 16px;
+    margin-top:            8px;
+}
+
+#chart-colonnes-legend .legend-entry strong {
+    color:       var(--color-text-main);
+    margin-right: 4px;
+}
+
+
+/* ============================================================
+   15. MINIATURES DE FOND DE CARTE
+   Aperçus visuels dans le panneau couches.
+   ============================================================ */
+.legende-miniature {
+    display:            inline-block;
+    width:              36px;
+    height:             24px;
+    border-radius:      3px;
+    border:             2px solid var(--color-border);
+    flex-shrink:        0;
+    background-size:    cover;
+    background-position: center;
+    transition:         border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+/* Aperçu — Plan IGN */
+.fond-ign {
+    background: linear-gradient(135deg, #c8dba0 0%, #e8e0c8 40%, #a0c0a0 70%, #d0c8a8 100%);
+}
+
+/* Aperçu — Orthophoto IGN */
+.fond-satellite {
+    background: linear-gradient(135deg, #2d4a1e 0%, #3d5a2e 30%, #4a3820 60%, #2a3a18 100%);
+}
+
+/* Miniature active (fond sélectionné) */
+.legende-item input:checked ~ .legende-miniature {
+    border-color: var(--color-accent);
+    box-shadow:   0 0 0 1px var(--color-accent);
+}
+
+
+/* ============================================================
+   16. POPUPS MAPLIBRE
+   ============================================================ */
+.maplibregl-popup-content {
+    max-height:  320px;
+    overflow-y:  auto;
+    font-family: var(--font-main, system-ui, sans-serif);
+    font-size:   var(--font-size-sm);
+    padding:     14px 16px;
+    border-radius: var(--border-radius-md);
+    scrollbar-width: thin;
+}
+
+.maplibregl-popup-content strong {
+    display:       block;
+    margin-bottom: 8px;
+    font-size:     var(--font-size-sm);
+    font-weight:   700;
+}
+
+.maplibregl-popup-content table {
+    width:           100%;
+    border-collapse: collapse;
+    font-size:       12px;
+}
+
+.maplibregl-popup-content table th {
+    text-align:   left;
+    color:        var(--color-text-muted);
+    font-weight:  600;
+    padding:      3px 10px 3px 0;
+    white-space:  nowrap;
+    vertical-align: top;
+}
+
+.maplibregl-popup-content table td {
+    color:          var(--color-text-main);
+    padding:        3px 0;
+    vertical-align: top;
+}
+
+
+/* ============================================================
+   17. CONTRÔLES NATIFS MAPLIBRE
+   Repositionnement pour éviter le chevauchement
+   avec les boutons d'export (#ctrl-bottom-left).
+   ============================================================ */
+.maplibregl-ctrl-bottom-right {
+    bottom:         30px;
+    right:          16px;
+    display:        flex;
+    flex-direction: row-reverse;
+    align-items:    flex-end;
+    gap:            8px;
+}

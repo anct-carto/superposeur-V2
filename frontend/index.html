@@ -1,0 +1,281 @@
+<!--
+    ============================================================
+    INDEX.HTML — Carte interactive ANCT
+    ============================================================
+    Structure de l'interface en trois zones :
+      · #header   — bandeau avec logo et navigation
+      · #main     — carte MapLibre + contrôles superposés
+      · #panel    — panneau latéral droit avec graphiques
+
+    Dépendances (dans l'ordre de chargement) :
+      MapLibre GL   — rendu cartographique WebGL
+      Chart.js      — graphiques du panneau
+      Lucide        — icônes vectorielles SVG
+      html2canvas   — capture DOM pour l'export PDF
+      jsPDF         — génération PDF côté client
+
+    Scripts applicatifs (ordre obligatoire) :
+      1. config.js  — constantes partagées (API, palette, métadonnées)
+      2. charts.js  — graphiques (dépend de config.js)
+      3. map.js     — carte (dépend de config.js et charts.js)
+
+    Raphaël Roumeau — Mai 2026
+    ============================================================
+-->
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Croisement Programmes ANCT</title>
+
+    <!-- MapLibre GL — carte interactive -->
+    <link href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+
+    <!-- Chart.js — graphiques -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Lucide — icônes vectorielles (doit être chargé avant map.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <!-- html2canvas — capture d'éléments DOM pour l'export PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- jsPDF — génération de PDF côté client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Feuille de style principale -->
+    <link href="/style.css" rel="stylesheet">
+</head>
+
+<body>
+
+    <!-- ============================================================
+         BANDEAU (#header)
+         Contient le logo ANCT et la navigation principale.
+         ============================================================ -->
+    <header id="header">
+
+        <!-- Logo cliquable vers le site ANCT -->
+        <div id="logo">
+            <a href="https://www.anct.gouv.fr" target="_blank" rel="noopener" aria-label="Site officiel ANCT">
+                <img src="/logo_anct.svg" alt="Logo ANCT" height="55">
+            </a>
+        </div>
+
+        <!-- Navigation principale -->
+        <nav aria-label="Navigation principale">
+
+            <a href="https://www.data.gouv.fr/organizations/agence-nationale-de-la-cohesion-des-territoires"
+               target="_blank" rel="noopener">Data.gouv</a>
+
+            <a href="https://cartotheque.anct.gouv.fr/cartes"
+               target="_blank" rel="noopener">Cartothèque</a>
+
+            <!-- Menu déroulant : liste des programmes ANCT -->
+            <div class="dropdown">
+                <a href="#" aria-haspopup="true" aria-expanded="false">
+                    Programmes ANCT
+                    <i data-lucide="chevron-down" aria-hidden="true"></i>
+                </a>
+                <div class="dropdown-menu" role="menu">
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/action-coeur-de-ville"                                                    target="_blank" rel="noopener" role="menuitem">Action cœur de ville</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/avenir-montagnes"                                                         target="_blank" rel="noopener" role="menuitem">Avenir montagne ingénierie</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/avenir-montagnes"                                                         target="_blank" rel="noopener" role="menuitem">Avenir montagne mobilité</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/politique-de-la-ville/dispositifs/cites-de-l-emploi"                      target="_blank" rel="noopener" role="menuitem">Cité de l'emploi</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/reconquete-commerciale/le-fonds-de-soutien-au-commerce-rural"             target="_blank" rel="noopener" role="menuitem">Commerces ruraux</a>
+                    <a href="https://anct.gouv.fr/ressources/publications/crte-les-fiches-pratiques"                                               target="_blank" rel="noopener" role="menuitem">CRTE</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/action-coeur-de-ville"                                                    target="_blank" rel="noopener" role="menuitem">Entrées de ville</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/tiers-lieux"                                                              target="_blank" rel="noopener" role="menuitem">Fabriques de territoire</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/fabriques-prospectives/liste-des-fabriques"                               target="_blank" rel="noopener" role="menuitem">Fabriques prospectives</a>
+                    <a href="https://anct.gouv.fr/ressources/publications/crte-les-fiches-pratiques"                                               target="_blank" rel="noopener" role="menuitem">Fonds de restructuration des locaux d'activité</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/france-services"                                                          target="_blank" rel="noopener" role="menuitem">France services</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/tiers-lieux"                                                              target="_blank" rel="noopener" role="menuitem">Manufactures de proximité</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/petites-villes-de-demain"                                                 target="_blank" rel="noopener" role="menuitem">Petites villes de demain</a>
+                    <a href="https://anct.gouv.fr/ressources/cartotheque/plan-de-transformation-de-zone-commerciale-2024-0"                        target="_blank" rel="noopener" role="menuitem">Plan de transformation de zone commerciale</a>
+                    <a href="https://anct.gouv.fr/quartiers-prioritaires"                                                                          target="_blank" rel="noopener" role="menuitem">Quartiers prioritaires de la ville</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/territoires-d-industrie/sites-cles-en-main"                               target="_blank" rel="noopener" role="menuitem">Sites clés en main</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/territoires-d-industrie"                                                  target="_blank" rel="noopener" role="menuitem">Territoires d'industrie</a>
+                    <a href="https://anct.gouv.fr/programmes-dispositifs/villages-d-avenir"                                                        target="_blank" rel="noopener" role="menuitem">Villages d'avenir</a>
+                </div>
+            </div>
+
+            <a href="#">À propos</a>
+
+        </nav>
+    </header>
+
+
+    <!-- ============================================================
+         ZONE PRINCIPALE (#main)
+         Contient la carte et tous les contrôles superposés.
+         ============================================================ -->
+    <main id="main">
+
+        <!-- Conteneur de la carte MapLibre -->
+        <div id="map" role="application" aria-label="Carte interactive des programmes ANCT"></div>
+
+
+        <!-- --------------------------------------------------------
+             CONTRÔLES HAUT GAUCHE
+             · Bouton légende (programmes)
+             · Barre de recherche + résultats
+             · Panneau légende dépliable
+             -------------------------------------------------------- -->
+        <div id="ctrl-top-left" role="group" aria-label="Recherche et légende">
+
+            <!-- Bouton d'ouverture de la légende des programmes -->
+            <button id="btn-legende" title="Afficher / masquer la légende" aria-expanded="false" aria-controls="legende">
+                <i data-lucide="list" aria-hidden="true"></i>
+            </button>
+
+            <!-- Barre de recherche de territoire -->
+            <div id="search-box" role="search">
+                <input
+                    type="text"
+                    id="search-input"
+                    placeholder="Rechercher un territoire…"
+                    autocomplete="off"
+                    aria-label="Rechercher un territoire"
+                    aria-autocomplete="list"
+                    aria-controls="search-results"
+                >
+                <button id="search-btn" title="Lancer la recherche" aria-label="Lancer la recherche">
+                    <i data-lucide="search" aria-hidden="true"></i>
+                </button>
+                <!-- Bouton de réinitialisation — masqué par défaut -->
+                <button id="btn-reset" title="Réinitialiser la vue" aria-label="Réinitialiser la vue" style="display:none">
+                    <i data-lucide="x" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <!-- Liste des résultats de recherche -->
+            <ul id="search-results" role="listbox" aria-label="Résultats de recherche"></ul>
+
+            <!-- Panneau légende des programmes (dépliable) -->
+            <div id="legende" hidden aria-label="Légende des programmes">
+                <h4>Programmes et dispositifs</h4>
+            </div>
+
+        </div>
+
+
+        <!-- --------------------------------------------------------
+             CONTRÔLES HAUT DROITE
+             · Bouton couches (fonds de carte, périmètres, admin)
+             · Panneau couches dépliable
+             -------------------------------------------------------- -->
+        <div id="ctrl-top-right" role="group" aria-label="Gestion des couches">
+
+            <button id="btn-couches" title="Afficher / masquer les couches" aria-expanded="false" aria-controls="panneau-couches">
+                <i data-lucide="layers" aria-hidden="true"></i>
+            </button>
+
+            <div id="panneau-couches" hidden aria-label="Gestion des couches cartographiques">
+                <h4>Couches</h4>
+            </div>
+
+        </div>
+
+
+        <!-- --------------------------------------------------------
+             CONTRÔLES BAS GAUCHE
+             · Export PDF (capture du panneau graphiques)
+             · Export CSV des communes sélectionnées
+             -------------------------------------------------------- -->
+        <div id="ctrl-bottom-left" role="group" aria-label="Export">
+
+            <button id="btn-imprimer" title="Exporter en PDF">
+                <i data-lucide="image-down" aria-hidden="true"></i>
+                <span>PDF</span>
+            </button>
+
+            <button id="btn-exporter" title="Exporter en CSV">
+                <i data-lucide="download" aria-hidden="true"></i>
+                <span>CSV</span>
+            </button>
+
+        </div>
+
+
+        <!-- Poignée du panneau latéral (slider) -->
+        <button id="slider-tab" aria-label="Ouvrir / fermer le panneau" title="Ouvrir / fermer le panneau">
+            <i data-lucide="chevron-left" aria-hidden="true"></i>
+        </button>
+
+
+        <!-- --------------------------------------------------------
+             PANNEAU LATÉRAL (#panel)
+             Affiche les graphiques du territoire sélectionné.
+             -------------------------------------------------------- -->
+        <aside id="panel" aria-label="Analyse du territoire sélectionné">
+            <div id="panel-inner">
+
+                <!-- Titre du territoire sélectionné -->
+                <h2 id="territoire">Territoire sélectionné</h2>
+
+                <!-- Graphique 1 : nombre de programmes par programme -->
+                <h3>Nombre de programmes</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart-barres" role="img" aria-label="Graphique : nombre de programmes par type"></canvas>
+                </div>
+
+                <!-- Graphique 2 : répartition typologique -->
+                <h3>Typologies</h3>
+
+                <!-- Sélecteur de grille typologique -->
+                <div id="typo-dropdown" class="dropdown">
+                    <a href="#" aria-haspopup="true" aria-expanded="false" id="typo-trigger">
+                        <span id="typo-label">Niveau de centres d'équipements et de services des communes 2021</span>
+                        <i data-lucide="chevron-down" aria-hidden="true"></i>
+                    </a>
+                    <div class="dropdown-menu" role="menu">
+                        <a href="#" data-typo="centralite" class="active" role="menuitem">Niveau de centres d'équipements et de services des communes 2021</a>
+                        <a href="#" data-typo="densite"    role="menuitem">Grille communale de densité en 7 niveaux</a>
+                        <a href="#" data-typo="ruralite"   role="menuitem">Typologie diversité des ruralités (Commune)</a>
+                    </div>
+                </div>
+
+                <div class="chart-wrapper">
+                    <canvas id="chart-colonnes" role="img" aria-label="Graphique : répartition typologique des programmes"></canvas>
+                </div>
+
+                <!-- Légende numérotée des classes typologiques -->
+                <div id="chart-colonnes-legend" aria-label="Légende des classes typologiques"></div>
+
+            </div>
+        </aside>
+
+    </main>
+
+
+    <!-- ============================================================
+         SCRIPTS APPLICATIFS
+         Ordre obligatoire :
+           1. config.js  — constantes partagées (API_URL, PALETTE,
+              métadonnées des programmes et couches, typologies)
+           2. charts.js  — graphiques (expose initCharts, updateCharts,
+              fetchDonneesTerritoire), dépend de config.js
+           3. map.js     — carte (appelle les fonctions de charts.js),
+              dépend de config.js et charts.js
+         Les trois attendent DOMContentLoaded pour s'exécuter.
+         ============================================================ -->
+    <script src="/config.js"></script>
+    <script src="/map.js"></script>
+    <script src="/charts.js"></script>
+
+    <div id="splash" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:Marianne,sans-serif;transition:opacity 0.3s">
+        <style>
+            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            #spinner { width:40px; height:40px; border:3px solid #e0e0e0; border-top-color:#003189; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:24px; }
+            #progress-text { font-size:16px; color:#1a1a2e; font-weight:500; }
+            #error-text { display:none; color:#d32f2f; font-size:14px; margin-top:16px; text-align:center; }
+        </style>
+        <div id="spinner"></div>
+        <p id="progress-text">Chargement de la carte…</p>
+        <p id="error-text"></p>
+    </div>
+</body>
+</html>
