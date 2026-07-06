@@ -103,7 +103,7 @@ def init():
     get_communes_json()
     
     # Charger explicitement l'index de recherche (charge tous les GDF géo)
-    from data import _get_index
+    from .data import _get_index
     _get_index()
     
     charger_typologie("centralite")
@@ -224,7 +224,7 @@ class ExportRequest(BaseModel):
 @app.post("/api/export-csv")
 def export_csv(req: ExportRequest):
     """Exporte les données en CSV avec encodage UTF-8."""
-    from data import exporter_csv
+    from .data import exporter_csv
     
     csv_content = exporter_csv(req.communes_insee, req.programmes)
     
