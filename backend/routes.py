@@ -21,7 +21,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from data import (
+from .data import (
     charger_programmes,
     charger_communes,
     charger_typologie,
