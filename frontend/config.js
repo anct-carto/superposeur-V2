@@ -24,7 +24,7 @@
 // ---------------------------------------------------------------------------
 
 /** URL de base du back-end FastAPI (sans slash final). */
-const API_URL = 'http://127.0.0.1:8000';
+const API_URL = window.location.origin;
 
 /**
  * Fonctions-routes : génèrent l'URL d'API pour un territoire donné.
