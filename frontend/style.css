@@ -841,3 +841,41 @@ nav > .dropdown > a:hover {
     align-items:    flex-end;
     gap:            8px;
 }
+
+/* ============================================================
+   DROPDOWN "À PROPOS"
+   ============================================================ */
+.dropdown-menu-apropos {
+    padding: 8px 12px;
+    min-width: 0;
+    width: 220px;
+    right: 0;
+    left: auto;
+}
+
+.dropdown-apropos-titre {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.6;
+    margin: 8px 0 3px;
+}
+
+.dropdown-apropos-titre:first-child { margin-top: 0; }
+
+.dropdown-apropos-item {
+    font-size: 11px;
+    line-height: 1.35;
+    margin: 0 0 2px;
+}
+
+.dropdown-apropos-contact {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.dropdown-apropos-contact:hover {
+    text-decoration: underline;
+}

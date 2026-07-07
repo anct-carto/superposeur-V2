@@ -102,7 +102,23 @@
                 </div>
             </div>
 
-            <a href="#">À propos</a>
+            <div class="dropdown">
+                <a href="#" aria-haspopup="true" aria-expanded="false">
+                    À propos
+                    <i data-lucide="chevron-down" aria-hidden="true"></i>
+                </a>
+                <div class="dropdown-menu dropdown-menu-apropos" role="menu">
+                    <p class="dropdown-apropos-titre">Sources</p>
+                    <p class="dropdown-apropos-item">ANCT - 2026</p>
+                    <p class="dropdown-apropos-item">SIGVille - 2024</p>
+                    <p class="dropdown-apropos-item">Insee – typologie en 7 classes des communes</p>
+                    <p class="dropdown-apropos-item">Acadie / Magali Talandier – typologie de la diversité des ruralités des communes</p>
+                    <p class="dropdown-apropos-item">Inrae / Caesar - 2021 – typologie des centralités</p>
+
+                    <p class="dropdown-apropos-titre">Contact</p>
+                    <a href="mailto:cartographie@anct.gouv.fr" class="dropdown-apropos-contact">cartographie@anct.gouv.fr</a>
+                </div>
+            </div>
 
         </nav>
     </header>
@@ -156,7 +172,6 @@
 
             <!-- Panneau légende des programmes (dépliable) -->
             <div id="legende" hidden aria-label="Légende des programmes">
-                <h4>Programmes et dispositifs</h4>
             </div>
 
         </div>

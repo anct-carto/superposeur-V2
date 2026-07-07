@@ -271,12 +271,22 @@ function _gererClickProgramme(e, id) {
 
 function construireLégende() {
     const legende = document.getElementById('legende');
-    legende.querySelectorAll('.legende-groupe, .legende-item, .legende-separateur').forEach(el => el.remove());
+    legende.querySelectorAll('.legende-groupe, .legende-item').forEach(el => el.remove());
 
+    // Regroupement unique (cercles + polygones confondus)
     const groupes = {};
-    programmesOrdonnes.forEach(prog => {
-        const meta = PROGRAMMES_META[prog] ?? { nom: prog, groupe: 'Autres', icone: 'circle' };
-        (groupes[meta.groupe] ??= { icone: meta.icone, progs: [] }).progs.push(prog);
+    Object.entries(PROGRAMMES_META).forEach(([key, meta]) => {
+        (groupes[meta.groupe] ??= []).push(key);
+    });
+
+    // Tri alphabétique : groupes, puis programmes à l'intérieur de chaque groupe
+    const nomsGroupesTries = Object.keys(groupes).sort((a, b) =>
+        a.localeCompare(b, 'fr', { sensitivity: 'base' })
+    );
+    nomsGroupesTries.forEach(g => {
+        groupes[g].sort((a, b) =>
+            PROGRAMMES_META[a].nom.localeCompare(PROGRAMMES_META[b].nom, 'fr', { sensitivity: 'base' })
+        );
     });
 
     // Bouton "Tous sélectionner"
@@ -286,64 +296,62 @@ function construireLégende() {
     legende.appendChild(btnTous);
 
     const btnTousProgr = document.getElementById('btn-tous-programmes');
-    const sontTousSelectionnes = () => programmesOrdonnes.every(p => programmesActifs.has(p));
-    const updateBtnText = () => { btnTousProgr.textContent = sontTousSelectionnes() ? 'Tous désélectionner' : 'Tous sélectionner'; };
+    const sontTousSelectionnes = () =>
+        Object.entries(PROGRAMMES_META).every(([key, meta]) =>
+            meta.type === 'cercle' ? programmesActifs.has(key) : !!map.getSource(`src-${key}`)
+        );
+    const updateBtnText = () => {
+        btnTousProgr.textContent = sontTousSelectionnes() ? 'Tous désélectionner' : 'Tous sélectionner';
+    };
 
-    btnTousProgr.addEventListener('click', () => {
-        if (sontTousSelectionnes()) {
-            programmesOrdonnes.forEach(prog => programmesActifs.delete(prog));
-            legende.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                if (programmesOrdonnes.includes(cb.value)) cb.checked = false;
-            });
-        } else {
-            programmesOrdonnes.forEach(prog => programmesActifs.add(prog));
-            legende.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                if (programmesOrdonnes.includes(cb.value)) cb.checked = true;
-            });
+    btnTousProgr.addEventListener('click', async () => {
+        const activer = !sontTousSelectionnes();
+        for (const [key, meta] of Object.entries(PROGRAMMES_META)) {
+            const checkbox = legende.querySelector(`input[value="${key}"]`);
+            if (meta.type === 'cercle') {
+                activer ? programmesActifs.add(key) : programmesActifs.delete(key);
+                if (checkbox) checkbox.checked = activer;
+            } else {
+                if (checkbox) checkbox.checked = activer;
+                const sourceId = `src-${key}`, layerId = `lyr-${key}`;
+                if (activer) await _chargerCoucheProgramme(key, sourceId, layerId, meta.couleur);
+                else _retirerCouche(sourceId, layerId);
+            }
         }
         appliquerFiltre();
         updateChartsForActivePrograms();
         updateBtnText();
     });
 
-    // Programmes par groupe
-    Object.entries(groupes).forEach(([titre, { icone, progs }]) => {
+    // Construction des groupes et de leurs items
+    nomsGroupesTries.forEach(nomGroupe => {
         const titreEl = document.createElement('p');
         titreEl.className = 'legende-groupe';
-        titreEl.innerHTML = `<i data-lucide="${icone}"></i>${titre}`;
+        titreEl.innerHTML = `<i data-lucide="${GROUPES_ICONES[nomGroupe] ?? 'circle'}"></i>${nomGroupe}`;
         legende.appendChild(titreEl);
 
-        progs.forEach(prog => {
-            const meta = PROGRAMMES_META[prog] ?? { nom: prog };
+        groupes[nomGroupe].forEach(key => {
+            const meta = PROGRAMMES_META[key];
             const item = document.createElement('label');
             item.className = 'legende-item';
-            item.innerHTML = `<input type="checkbox" value="${prog}"><span class="legende-carre" style="background:${couleursParProg[prog]}"></span><span class="legende-label">${meta.nom}</span>`;
-            item.querySelector('input').addEventListener('change', e => {
-                e.target.checked ? programmesActifs.add(prog) : programmesActifs.delete(prog);
-                appliquerFiltre();
-                updateChartsForActivePrograms();
+            const style = meta.type === 'cercle' ? `background:${meta.couleur}` : _stylePastille(key, meta);
+            item.innerHTML = `<input type="checkbox" value="${key}"><span class="legende-carre" style="${style}"></span><span class="legende-label">${meta.nom}</span>`;
+
+            item.querySelector('input').addEventListener('change', async e => {
+                if (meta.type === 'cercle') {
+                    e.target.checked ? programmesActifs.add(key) : programmesActifs.delete(key);
+                    appliquerFiltre();
+                    updateChartsForActivePrograms();
+                } else {
+                    const sourceId = `src-${key}`, layerId = `lyr-${key}`;
+                    e.target.checked
+                        ? await _chargerCoucheProgramme(key, sourceId, layerId, meta.couleur)
+                        : _retirerCouche(sourceId, layerId);
+                }
                 updateBtnText();
             });
             legende.appendChild(item);
         });
-    });
-
-    // Dispositifs
-    const sep = document.createElement('p');
-    sep.className = 'legende-groupe legende-separateur';
-    sep.innerHTML = '<i data-lucide="land-plot"></i>Dispositifs';
-    legende.appendChild(sep);
-
-    Object.entries(DISPOSITIFS_LEGENDE).forEach(([key, meta]) => {
-        const item = document.createElement('label');
-        item.className = 'legende-item';
-        item.innerHTML = `<input type="checkbox" value="${key}"><span class="legende-carre" style="${_stylePastille(key, meta)}"></span><span class="legende-label">${meta.nom}</span>`;
-        item.querySelector('input').addEventListener('change', async e => {
-            const sourceId = `src-${key}`;
-            const layerId = `lyr-${key}`;
-            e.target.checked ? await _chargerCoucheProgramme(key, sourceId, layerId, meta.couleur) : _retirerCouche(sourceId, layerId);
-        });
-        legende.appendChild(item);
     });
 
     lucide.createIcons({ context: legende });

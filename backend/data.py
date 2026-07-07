@@ -46,6 +46,10 @@ SOURCES_DATAGOUV: dict[str, str] = {
     "ami":   "https://www.data.gouv.fr/api/1/datasets/r/20530b87-b74e-4372-961f-a51dd818ac36",
     "amm":   "https://www.data.gouv.fr/api/1/datasets/r/370d0ac5-fd43-4c62-b1a5-eea6f1fd90d3",
     "fabp":  "https://www.data.gouv.fr/api/1/datasets/r/87d38102-b2c1-4e81-9a9d-4d922effc8f8",
+    "pao":    "https://www.data.gouv.fr/api/1/datasets/r/6de2ad29-6671-4cd7-beca-637a5b183fd0",
+    "frla":   "https://www.data.gouv.fr/api/1/datasets/r/3fbacdea-2afd-44e9-96ce-1099f128d795",
+    "comrur": "https://www.data.gouv.fr/api/1/datasets/r/c6e360a4-d979-4297-b0d4-c3aee158c531",
+    "ptzc":   "https://www.data.gouv.fr/api/1/datasets/r/8c627383-0d11-403e-8621-2b82bf223f27",
 }
 
 # Mapping : clé interne → nom de colonne dans le CSV
@@ -65,6 +69,10 @@ MAPPING_ID_COLONNE = {
     "ami":   "id_ami",
     "amm":   "id_amm",
     "fabt":  "id_fabt",
+    "pao":    "id_pao",
+    "frla":   "id_frla",
+    "comrur": "id_comrur",
+    "ptzc":   "id_ptzc",
 }
 
 # ---------------------------------------------------------------------------

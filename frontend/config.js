@@ -45,7 +45,7 @@ const ROUTES_API = {
 // ---------------------------------------------------------------------------
 
 const PALETTE = [
-    '#1542d4', // Action cœur de ville      — acv
+    '#e12a5c', // Action cœur de ville      — acv
     '#DA7E42', // Petites villes de demain  — pvd
     '#273375', // France services           — fs
     '#a40037', // Villages d'avenir         — va
@@ -59,6 +59,10 @@ const PALETTE = [
     '#E84855', // Cités éducatives          — cite (provisoire)
     '#6B4226', // Sites clés en main        — site (provisoire)
     '#4E8098', // Entrées de ville          — edv  (provisoire)
+    '#b5541e', // Projet appui opérationnel      — pao
+    '#4f6d4f', // Fonds restructuration locaux   — frla
+    '#8a3f5c', // Commerces ruraux               — comrur
+    '#2f5d62', // Plan transformation zones com. — ptzc
 ];
 
 
@@ -67,26 +71,56 @@ const PALETTE = [
 // ---------------------------------------------------------------------------
 
 const PROGRAMMES_META = {
-    fs:    { nom: 'France services',                                 couleur: '#273375', groupe: 'Solidarité et participation citoyenne', icone: 'users'      },
-    cde:   { nom: "Cités de l'emploi",                              couleur: '#2E86AB', groupe: 'Jeunesse et éducation',                 icone: 'user-check' },
-    cite:  { nom: 'Cités éducatives',                               couleur: '#E84855', groupe: 'Jeunesse et éducation',                 icone: 'user-check' },
-    ti:    { nom: "Territoires d'industrie",                        couleur: '#599AD4', groupe: 'Économie, emploi et commerces',         icone: 'badge-euro' },
-    site:  { nom: 'Sites clés en main',                             couleur: '#6B4226', groupe: 'Économie, emploi et commerces',         icone: 'badge-euro' },
-    acv:   { nom: 'Action cœur de ville',                           couleur: '#1542d4', groupe: 'Culture, patrimoine et tourisme',       icone: 'landmark'   },
-    edv:   { nom: 'Entrées de ville',                               couleur: '#4E8098', groupe: 'Culture, patrimoine et tourisme',       icone: 'landmark'   },
-    pvd:   { nom: 'Petites villes de demain',                       couleur: '#DA7E42', groupe: 'Culture, patrimoine et tourisme',       icone: 'landmark'   },
-    va:    { nom: "Villages d'avenir",                              couleur: '#a40037', groupe: 'Culture, patrimoine et tourisme',       icone: 'landmark'   },
-    fabp:  { nom: 'Fabriques prospectives',                         couleur: '#de9f00', groupe: 'Solidarité et participation citoyenne', icone: 'users'      },
-    manup: { nom: 'Manufactures de proximité',                      couleur: '#8d5a99', groupe: 'Économie, emploi et commerces',         icone: 'badge-euro' },
-    crte:  { nom: 'Contrat de relance et de transition écologique', couleur: '#3ca331', groupe: 'Culture, patrimoine et tourisme',       icone: 'landmark'   },
-    ami:   { nom: 'Avenir montagne ingénierie',                     couleur: '#327d48', groupe: 'Solidarité et participation citoyenne', icone: 'users'      },
-    amm:   { nom: 'Avenir montagne mobilité',                       couleur: '#327d48', groupe: 'Solidarité et participation citoyenne', icone: 'users'      },
-    fabt:  { nom: 'Fabriques de territoire',                        couleur: '#616daf', groupe: 'Solidarité et participation citoyenne', icone: 'users'      },
+    // --- Services publics ---
+    fs:     { nom: 'France services',                                 couleur: '#273375', groupe: 'Services publics', type: 'cercle' },
+
+    // --- Dynamiques des centres villes et bourgs ---
+    acv:    { nom: 'Action cœur de ville',            couleur: '#e12a5c', groupe: 'Dynamiques des centres villes et bourgs', type: 'cercle' },
+    edv:    { nom: 'Entrées de ville',                couleur: '#4E8098', groupe: 'Dynamiques des centres villes et bourgs', type: 'cercle' },
+    pvd:    { nom: 'Petites villes de demain',        couleur: '#DA7E42', groupe: 'Dynamiques des centres villes et bourgs', type: 'cercle' },
+    va:     { nom: "Villages d'avenir",               couleur: '#a40037', groupe: 'Dynamiques des centres villes et bourgs', type: 'cercle' },
+
+    // --- Industrie ---
+    site:   { nom: 'Sites clés en main',              couleur: '#6B4226', groupe: 'Industrie', type: 'cercle' },
+    ti:     { nom: "Territoires d'industrie",         couleur: '#599AD4', groupe: 'Industrie', type: 'polygone', url: '../data/admin/polygone-4326_ti.geojson' },
+
+    // --- Politique de la ville ---
+    cde:    { nom: "Cités de l'emploi",               couleur: '#2E86AB', groupe: 'Politique de la ville', type: 'cercle' },
+    cite:   { nom: 'Cités éducatives',                couleur: '#E84855', groupe: 'Politique de la ville', type: 'cercle' },
+    qpv:    { nom: 'Commune ayant au moins un QPV',   couleur: '#E1000F', groupe: 'Politique de la ville', type: 'polygone', url: '../data/admin/polygone-4326_qpv.geojson' },
+
+    // --- Territoires, transition écologique ---
+    ami:    { nom: 'Avenir montagne ingénierie',      couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_ami.geojson' },
+    amm:    { nom: 'Avenir montagne mobilité',        couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_amm.geojson' },
+    crte:   { nom: 'CRTE',                            couleur: '#3ca331', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_crte.geojson' },
+
+    // --- Commerces ---
+    comrur: { nom: 'Commerces ruraux',                                    couleur: '#8a3f5c', groupe: 'Commerces', type: 'cercle' },
+    frla:   { nom: "Fonds de restructuration des locaux d'activité",      couleur: '#4f6d4f', groupe: 'Commerces', type: 'cercle' },
+    ptzc:   { nom: 'Plan de transformation des zones commerciales',       couleur: '#2f5d62', groupe: 'Commerces', type: 'cercle' },
+    pao:    { nom: 'Projet appui opérationnel',                          couleur: '#b5541e', groupe: 'Commerces', type: 'cercle' },
+
+    // --- Coopération territoriale et lien social ---
+    fabt:   { nom: 'Fabriques de territoire',         couleur: '#616daf', groupe: 'Coopération territoriale et lien social', type: 'cercle' },
+    fabp:   { nom: 'Fabriques prospectives',          couleur: '#de9f00', groupe: 'Coopération territoriale et lien social', type: 'polygone', url: '../data/admin/polygone-4326_fabriques.geojson' },
+    manup:  { nom: 'Manufactures de proximité',       couleur: '#8d5a99', groupe: 'Coopération territoriale et lien social', type: 'cercle' },
+};
+
+/**
+ * Icône (lucide) par grande catégorie, affichée dans l'en-tête de groupe.
+ */
+const GROUPES_ICONES = {
+    'Services publics':                          'users',
+    'Dynamiques des centres villes et bourgs':    'landmark',
+    'Industrie':                                  'badge-euro',
+    'Politique de la ville':                      'building',
+    'Territoires, transition écologique':         'leaf',
+    'Commerces':                                  'shopping-cart',
+    'Coopération territoriale et lien social':    'handshake',
 };
 
 /**
  * Dictionnaire clé → libellé court, dérivé de PROGRAMMES_META.
- * Utilisé par Chart.js pour les labels des axes et tooltips.
  */
 const LABELS_PROGRAMMES = Object.fromEntries(
     Object.entries(PROGRAMMES_META).map(([cle, meta]) => [cle, meta.nom])
@@ -94,10 +128,13 @@ const LABELS_PROGRAMMES = Object.fromEntries(
 
 /**
  * Ensemble des clés de programmes affichables dans les graphiques.
- * Permet de filtrer rapidement les programmes inconnus ou hors-périmètre.
+ * NB : seuls les programmes de type "cercle" ont une valeur par commune
+ * exploitable par charts.js (liste_programmes) — les polygones (ti, qpv,
+ * crte, ami, amm, fabp) sont exclus des graphiques comme avant.
  */
-const PROGRAMMES_GRAPHIQUE = new Set(Object.keys(PROGRAMMES_META));
-
+const PROGRAMMES_GRAPHIQUE = new Set(
+    Object.entries(PROGRAMMES_META).filter(([, m]) => m.type === 'cercle').map(([k]) => k)
+);
 
 // ---------------------------------------------------------------------------
 // 4. COUCHES POLYGONES
