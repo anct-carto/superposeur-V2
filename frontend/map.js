@@ -13,7 +13,6 @@ let   programmesActifs = new Set();
 let   filtreGeo        = null;
 const fondsActifs = new Set(['ign']);
 const _cacheGeoJSON     = {};
-const _handlersParCouche = {};
 let   clusterActif = null;
 let   panelOpen = false;
 
@@ -199,34 +198,39 @@ function _ajouterLayersConcentriques() {
 // ---------------------------------------------------------------------------
 
 function _initialiserHandlers() {
-    // Handler cluster (unique)
-    map.on('click', 'cluster-eclate', (e) => {
-        const insee = e.features[0].properties.commune;
-        const lib_com = e.features[0].properties.lib_com;
+    _coucheClicHandlers['cluster-eclate'] = (f) => {
+        const insee = f.properties.commune;
+        const lib_com = f.properties.lib_com;
         if (!panelOpen) togglePanelOpen();
         fetchDonneesTerritoire(insee, 'commune', lib_com);
         nettoyerCluster();
         appliquerFiltre();
-    });
-
+    };
     map.on('mouseenter', 'cluster-eclate', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'cluster-eclate', () => { map.getCanvas().style.cursor = ''; });
 
-    // Handlers programmes
     programmesOrdonnes.forEach((_, i) => {
         const id = `prog-${i}`;
-        
-        map.on('click', id, (e) => _gererClickProgramme(e, id));
+        _coucheClicHandlers[id] = (f, e) => _gererClickProgramme(f, e, id);
         map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
     });
 }
 
-function _gererClickProgramme(e, id) {
-    const insee = e.features[0].properties.insee_com;
-    const lib_com = e.features[0].properties.lib_com || insee;
-    const coords = e.features[0].geometry.coordinates;
-    let programmes = e.features[0].properties.liste_programmes || [];
+function _gererClickProgramme(f, e, id) {
+    const insee = f.properties.insee_com;
+    const lib_com = f.properties.lib_com || insee;
+    const coords = f.geometry.coordinates;
+    const prog = programmesOrdonnes[parseInt(id.split('-')[1], 10)];
+    new maplibregl.Popup({ maxWidth: '260px' })
+        .setLngLat(coords)
+        .setHTML(`<strong style="color:${couleursParProg[prog]}">${(PROGRAMMES_META[prog] ?? {}).nom ?? prog}</strong>
+            <table style="margin-top:6px;width:100%;border-collapse:collapse;font-size:12px">
+                <tr><th>Code INSEE</th><td>${insee}</td></tr>
+                <tr><th>Commune</th><td>${lib_com}</td></tr>
+            </table>`)
+        .addTo(map);    
+    let programmes = f.properties.liste_programmes || [];
 
     if (typeof programmes === 'string') {
         try { programmes = JSON.parse(programmes); } 
@@ -438,19 +442,19 @@ async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
         const data = await _fetchGeoJSON(meta.url);
         map.addSource(sourceId, { type: 'geojson', data });
 
-        const premierCercle = map.getLayer('prog-0') ? 'prog-0' : undefined;
-        map.addLayer({ id: layerId, type: 'fill', source: sourceId, paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } }, premierCercle);
-        map.addLayer({ id: `${layerId}-stroke`, type: 'line', source: sourceId, paint: { 'line-color': couleur, 'line-width': 1.5 } }, premierCercle);
-
-        const onClick = e => {
-            const p = e.features[0].properties;
+        map.addLayer({ id: layerId, type: 'fill', source: sourceId, paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } });
+        map.addLayer({ id: `${layerId}-stroke`, type: 'line', source: sourceId, paint: { 'line-color': couleur, 'line-width': 1.5 } });
+        programmesOrdonnes.forEach((_, i) => { if (map.getLayer(`prog-${i}`)) map.moveLayer(`prog-${i}`); });
+        const onClick = (f, e) => {
+            const p = f.properties;
+            const idKey = Object.keys(p).find(k => k.startsWith('id_'));
+            if (idKey) _surlignerPolygone(layerId, idKey, p[idKey], couleur);
             const lignes = [];
             if (p.code_qp) {
                 if (p.lib_com) lignes.push(`<tr><th>Commune</th><td>${p.lib_com}</td></tr>`);
                 if (p.code_qp) lignes.push(`<tr><th>Code QPV</th><td>${p.code_qp}</td></tr>`);
                 if (p.lib_qp) lignes.push(`<tr><th>Quartiers</th><td>${p.lib_qp}</td></tr>`);
             } else {
-                const idKey = Object.keys(p).find(k => k.startsWith('id_'));
                 const libKey = Object.keys(p).find(k => k.startsWith('lib_') && k !== 'lib_groupement');
                 if (idKey) lignes.push(`<tr><th>${idKey}</th><td>${p[idKey]}</td></tr>`);
                 if (libKey) lignes.push(`<tr><th>${libKey}</th><td>${p[libKey]}</td></tr>`);
@@ -461,11 +465,9 @@ async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
             new maplibregl.Popup({ maxWidth: '340px' }).setLngLat(e.lngLat).setHTML(`<strong style="color:${couleur}">${meta.nom}</strong><table style="margin-top:8px;width:100%;border-collapse:collapse;font-size:12px">${lignes.join('')}</table>`).addTo(map);
         };
 
-        map.on('click', layerId, onClick);
+        _coucheClicHandlers[layerId] = onClick;
         map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
-
-        _handlersParCouche[layerId] = { click: onClick };
     } catch (err) {
         console.error(`[map.js] Erreur chargement couche "${key}" :`, err);
     }
@@ -483,13 +485,84 @@ async function _chargerCoucheAdmin(key, sourceId, layerId, couleur) {
 }
 
 function _retirerCouche(sourceId, layerId) {
-    const handlers = _handlersParCouche[layerId];
-    if (handlers && map.getLayer(layerId)) {
-        map.off('click', layerId, handlers.click);
-        delete _handlersParCouche[layerId];
-    }
-    [`${layerId}-stroke`, layerId].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+    delete _coucheClicHandlers[layerId];
+    if (surlignage?.layerId === layerId) _reinitialiserSurlignage();
+    const glowId = `${layerId}-glow`;
+    [glowId, `${layerId}-stroke`, layerId].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
     if (map.getSource(sourceId)) map.removeSource(sourceId);
+}
+
+const _coucheClicHandlers = {}; // layerId -> (feature, event) => void
+
+function _layersCliquables() {
+    const pts = programmesOrdonnes.map((_, i) => `prog-${i}`).filter(id => map.getLayer(id));
+    const polys = Object.keys(_coucheClicHandlers).filter(id => map.getLayer(id) && !pts.includes(id));
+    return [...pts, ...polys];
+}
+
+map.on('click', e => {
+    const layers = _layersCliquables();
+    if (!layers.length) return;
+    const features = map.queryRenderedFeatures(e.point, { layers });
+    if (!features.length) { _reinitialiserSurlignage(); return; }
+    const f = features[0];
+    _coucheClicHandlers[f.layer.id]?.(f, e);
+});
+
+
+let surlignage = null; // { layerId, idKey, idValue, couleur, animId }
+
+function _surlignerPolygone(layerId, idKey, idValue, couleur) {
+    if (surlignage) _reinitialiserSurlignage();
+
+    const glowId = `${layerId}-glow`;
+    if (!map.getLayer(glowId)) {
+        map.addLayer({
+            id: glowId,
+            type: 'line',
+            source: map.getLayer(layerId).source,
+            paint: {
+                'line-color': couleur,
+                'line-width': 0,
+                'line-blur': 6,
+                'line-opacity': 0,
+            }
+        }, `${layerId}-stroke`); // sous le contour net
+    }
+
+    map.setFilter(glowId, ['==', ['get', idKey], idValue]);
+    map.setPaintProperty(`${layerId}-stroke`, 'line-width', ['case', ['==', ['get', idKey], idValue], 3, 1.5]);
+    map.setPaintProperty(`${layerId}-stroke`, 'line-color', ['case', ['==', ['get', idKey], idValue], '#ffffff', couleur]);
+    map.setPaintProperty(layerId, 'fill-opacity', ['case', ['==', ['get', idKey], idValue], 0.5, 0.3]);
+
+    const start = performance.now();
+    const anim = now => {
+        const t = (now - start) / 1000;
+        const pulse = 0.5 + 0.5 * Math.sin(t * 2); // 0 -> 1 -> 0, ~3s par cycle
+        map.setPaintProperty(glowId, 'line-width', 6 + pulse * 6);
+        map.setPaintProperty(glowId, 'line-opacity', 0.35 + pulse * 0.35);
+        surlignage.animId = requestAnimationFrame(anim);
+    };
+    surlignage = { layerId, idKey, idValue, couleur, animId: null };
+    surlignage.animId = requestAnimationFrame(anim);
+}
+
+function _reinitialiserSurlignage() {
+    if (!surlignage) return;
+    const { layerId, couleur, animId } = surlignage;
+    if (animId) cancelAnimationFrame(animId);
+
+    const glowId = `${layerId}-glow`;
+    if (map.getLayer(glowId)) {
+        map.setPaintProperty(glowId, 'line-width', 0);
+        map.setPaintProperty(glowId, 'line-opacity', 0);
+    }
+    if (map.getLayer(`${layerId}-stroke`)) {
+        map.setPaintProperty(`${layerId}-stroke`, 'line-width', 1.5);
+        map.setPaintProperty(`${layerId}-stroke`, 'line-color', couleur);
+    }
+    if (map.getLayer(layerId)) map.setPaintProperty(layerId, 'fill-opacity', 0.3);
+    surlignage = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -564,6 +637,7 @@ function _zoomEtFiltrer(entite) {
 
 function _reinitialiser() {
     nettoyerCluster();
+    _reinitialiserSurlignage();
     filtreGeo = null;
     searchInput.value = '';
     appliquerFiltre();
