@@ -35,7 +35,10 @@ from .data import (
     get_typologies_meta,
     rechercher_entites,
     get_detail_arr,
-    get_detail_crte
+    get_detail_crte,
+    get_detail_massif,
+    get_detail_france,
+    get_qpv_json,
 )
 
 # ---------------------------------------------------------------------------
@@ -173,12 +176,28 @@ def detail_crte(id_crte: str):
         raise HTTPException(status_code=404, detail=f"CRTE '{id_crte}' introuvable.")
     return result
 
+@app.get("/api/massif/{code}")
+def detail_massif(code: str):
+    result = get_detail_massif(code)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Massif '{code}' introuvable.")
+    return result
+
+@app.get("/api/france")
+def detail_france():
+    return get_detail_france()
+
+@app.get("/api/qpv")
+def qpv():
+    """GeoJSON des QPV (centroïdes), enrichi des codes territoriaux."""
+    return get_qpv_json()
+
 # ---------------------------------------------------------------------------
 # Routes — recherche textuelle
 # ---------------------------------------------------------------------------
 
 @app.get("/api/recherche")
-def recherche(q: str = "", types: str = "commune,epci,departement,region,arr,crte"):
+def recherche(q: str = "", types: str = "commune,epci,departement,region,arr,crte, massif, france"):
     """
     Recherche textuelle dans les entités géographiques.
 

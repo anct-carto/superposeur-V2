@@ -131,6 +131,8 @@ def run_admin():
     df_com = df_com.merge(df_crte, on="insee_com", how="left")
 
 
+
+
     for gpkg in GPKG:
         name   = os.path.basename(gpkg)
         prefix = "centroide-4326" if "centroide" in name else "contour-4326" if "contour" in name else "polygone-4326"
@@ -208,7 +210,7 @@ def _run_dissolve_dataset(name, df, cfg):
         df_ngeo = pd.read_sql_query("SELECT insee_com, siren_com FROM ngeo", conn)
         conn.close()
         sub_com = sub_com.merge(df_ngeo, left_on="siren_groupement", right_on="siren_com", how="inner")
-        gdf_com = gpd.read_file(GPKG_MAIN, layer="com").to_crs(4326)
+        gdf_com = gpd.read_file(GPKG[0], layer="com").to_crs(4326) 
         frames.append(gdf_com[["insee_com", "geometry"]].merge(sub_com, on="insee_com", how="inner"))
 
     # --- EPT : jointure sur siren_ept ---
@@ -296,11 +298,11 @@ def _run_qpv():
     )
 
     # Jointure avec les géométries communales
-    gdf_com = gpd.read_file(GPKG_MAIN, layer="com").to_crs(4326)
+    gdf_com = gpd.read_file(BASE / "centroide-4326_com.geojson")
     gdf = gdf_com[["insee_com", "geometry"]].merge(df_agg, on="insee_com", how="inner")
     gdf = gpd.GeoDataFrame(gdf[["insee_com", "lib_com", "code_qp", "lib_qp", "geometry"]], crs="EPSG:4326")
 
-    output = BASE / "polygone-4326_qpv.geojson"
+    output = BASE / "centroide-4326_qpv.geojson"
     output.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(output, driver="GeoJSON")
     print(f"  → qpv : {len(gdf)} communes avec au moins un QPV exportées")

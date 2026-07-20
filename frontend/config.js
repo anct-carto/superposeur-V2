@@ -37,6 +37,8 @@ const ROUTES_API = {
     epci:        code => `${API_URL}/api/epci/${code}`,
     arr:         code => `${API_URL}/api/arr/${code}`,     // ← nouveau
     crte:        code => `${API_URL}/api/crte/${code}`,   // ← nouveau
+    massif:  code => `${API_URL}/api/massif/${encodeURIComponent(code)}`,
+    france:  ()   => `${API_URL}/api/france`,  
 };
 
 
@@ -87,7 +89,8 @@ const PROGRAMMES_META = {
     // --- Politique de la ville ---
     cde:    { nom: "Cités de l'emploi",               couleur: '#2E86AB', groupe: 'Politique de la ville', type: 'cercle' },
     cite:   { nom: 'Cités éducatives',                couleur: '#E84855', groupe: 'Politique de la ville', type: 'cercle' },
-    qpv:    { nom: 'Commune ayant au moins un QPV',   couleur: '#E1000F', groupe: 'Politique de la ville', type: 'polygone', url: '../data/admin/polygone-4326_qpv.geojson' },
+    // Dans PROGRAMMES_META
+qpv: { nom: 'Quartier prioritaire de la ville', couleur: '#E1000F', groupe: 'Politique de la ville', type: 'point', url: `${API_URL}/api/qpv` },
 
     // --- Territoires, transition écologique ---
     ami:    { nom: 'Avenir montagne ingénierie',      couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_ami.geojson' },
@@ -151,7 +154,7 @@ const PROGRAMMES_COUCHES = {
     ami:  { nom: 'Avenir montagne ingénierie', couleur: '#327d48', url: '../data/admin/polygone-4326_ami.geojson'       },
     amm:  { nom: 'Avenir montagne mobilité',   couleur: '#327d48', url: '../data/admin/polygone-4326_amm.geojson'       },
     crte: { nom: 'CRTE',                       couleur: '#3ca331', url: '../data/admin/polygone-4326_crte.geojson'      },
-    qpv:  { nom: 'Quartiers prioritaires',     couleur: '#E1000F', url: '../data/admin/polygone-4326_qpv.geojson'       },
+    qpv: { nom: 'Quartiers prioritaires', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
 };
 
 /**
@@ -186,8 +189,13 @@ const LIMITES_ADMIN = {
  * Utilisé par _stylePastille() dans map.js pour choisir le style de pastille.
  */
 const COUCHES_CONTOUR = new Set(['com', 'arr', 'epci', 'dep', 'reg', 'montagne']);
-
-
+/** Couches-programmes dont la géométrie est un point (et non un polygone). */
+const COUCHES_POINT = new Set(['qpv']);
+/**
+ * Couches (hors programmes en cercles) auxquelles on applique le filtre
+ * de territoire (filtreGeo) lors d'une recherche, comme pour les prog-i.
+ */
+const COUCHES_TERRITORIALISABLES = new Set(['qpv']);
 // ---------------------------------------------------------------------------
 // 5. TERRITOIRES
 // ---------------------------------------------------------------------------
@@ -202,6 +210,8 @@ const TYPE_LABELS = {
     region:      'Région',
     arr:         'Arrondissement',   // ← nouveau
     crte:        'CRTE',             // ← nouveau
+    massif:  'Massif',
+    france:  'France',
 };
 
 /**
@@ -215,6 +225,7 @@ const CHAMPS_GEO_PAR_TYPE = {
     region:      'insee_reg',
     arr:         'insee_arr',        // ← nouveau
     crte:        'id_crte',          // ← à confirmer selon ta colonne
+    massif : 'niveau_montagne',
 };
 
 

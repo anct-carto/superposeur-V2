@@ -102,6 +102,10 @@ function appliquerFiltre() {
         map.setFilter(id, filtreGeo ? ['all', filtreProg, filtreGeo] : filtreProg);
     });
     mettreAJourCouleursCentroide();
+        COUCHES_TERRITORIALISABLES.forEach(key => {
+        const layerId = `lyr-${key}`;
+        if (map.getLayer(layerId)) map.setFilter(layerId, filtreGeo || null);
+    });
 }
 
 function nettoyerCluster() {
@@ -201,7 +205,6 @@ function _initialiserHandlers() {
     _coucheClicHandlers['cluster-eclate'] = (f) => {
         const insee = f.properties.commune;
         const lib_com = f.properties.lib_com;
-        if (!panelOpen) togglePanelOpen();
         fetchDonneesTerritoire(insee, 'commune', lib_com);
         nettoyerCluster();
         appliquerFiltre();
@@ -247,7 +250,6 @@ function _gererClickProgramme(f, e, id) {
     mettreAJourCouleursCentroide();
 
     // Afficher graphiques
-    if (!panelOpen) togglePanelOpen();
     fetchDonneesTerritoire(insee, 'commune', lib_com);
 
     // Créer cluster si plusieurs programmes
@@ -442,8 +444,19 @@ async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
         const data = await _fetchGeoJSON(meta.url);
         map.addSource(sourceId, { type: 'geojson', data });
 
-        map.addLayer({ id: layerId, type: 'fill', source: sourceId, paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } });
-        map.addLayer({ id: `${layerId}-stroke`, type: 'line', source: sourceId, paint: { 'line-color': couleur, 'line-width': 1.5 } });
+        if (COUCHES_POINT.has(key)) {
+            map.addLayer({ id: layerId, type: 'circle', source: sourceId, paint: {
+                'circle-radius': 5, 'circle-color': couleur, 'circle-opacity': 0.75,
+                'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff',
+            }});
+            
+        if (COUCHES_TERRITORIALISABLES.has(key) && filtreGeo) {
+            map.setFilter(layerId, filtreGeo);
+        }
+        } else {
+            map.addLayer({ id: layerId, type: 'fill', source: sourceId, paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } });
+            map.addLayer({ id: `${layerId}-stroke`, type: 'line', source: sourceId, paint: { 'line-color': couleur, 'line-width': 1.5 } });
+        }
         programmesOrdonnes.forEach((_, i) => { if (map.getLayer(`prog-${i}`)) map.moveLayer(`prog-${i}`); });
         const onClick = (f, e) => {
             const p = f.properties;
@@ -631,7 +644,6 @@ function _zoomEtFiltrer(entite) {
     filtreGeo = champ ? ['==', ['get', champ], entite.code] : null;
     appliquerFiltre();
     btnReset.style.display = 'inline-flex';
-    if (!panelOpen) togglePanelOpen();
     fetchDonneesTerritoire(entite.code, entite.type, entite.nom);
 }
 

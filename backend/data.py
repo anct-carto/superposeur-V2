@@ -88,6 +88,20 @@ DEPARTEMENTS_POLYGONE = f"{_BASE}/polygone-4326_dep.geojson"
 REGIONS_POLYGONE      = f"{_BASE}/polygone-4326_reg.geojson"
 ARR_POLYGONE  = f"{_BASE}/polygone-4326_arr.geojson"
 CRTE_POLYGONE = f"{_BASE}/polygone-4326_crte.geojson"
+MONTAGNE_POLYGONE = f"{_BASE}/polygone-4326_montagne.geojson"
+TI_POLYGONE   = f"{_BASE}/polygone-4326_ti.geojson"
+QPV_CENTROIDE = f"{_BASE}/centroide-4326_qpv.geojson"
+AMI_POLYGONE  = f"{_BASE}/polygone-4326_ami.geojson"
+AMM_POLYGONE  = f"{_BASE}/polygone-4326_amm.geojson"
+FABP_POLYGONE = f"{_BASE}/polygone-4326_fabriques.geojson"
+
+# Zonages nécessitant une jointure spatiale (pas déjà présents dans les communes)
+ZONAGES_SPATIAUX = {
+    "id_ti":   {"chemin": TI_POLYGONE,   "col_id": None},       # None = détection auto "id_*"
+    "id_ami":  {"chemin": AMI_POLYGONE,  "col_id": None},
+    "id_amm":  {"chemin": AMM_POLYGONE,  "col_id": None},
+    "id_fabp": {"chemin": FABP_POLYGONE, "col_id": None},
+}
 
 # ---------------------------------------------------------------------------
 # CACHE MÉMOIRE (durée de vie : 24 h)
@@ -191,6 +205,49 @@ def charger_programmes() -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # COMMUNES
 # ---------------------------------------------------------------------------
+def _detecter_col_id(gdf, col_id_forcee=None):
+    if col_id_forcee:
+        return col_id_forcee
+    for col in gdf.columns:
+        if col.startswith("id_"):
+            return col
+    raise ValueError("Aucune colonne 'id_*' trouvée dans ce zonage.")
+
+
+def _calculer_zonages(communes: gpd.GeoDataFrame) -> pd.DataFrame:
+    """
+    Jointure spatiale communes ↔ chaque zonage polygone.
+    Retourne un DataFrame indexé par insee_com avec une colonne id_xxx par zonage
+    (chaîne vide si hors zonage, ids séparés par ';' si plusieurs matches).
+    """
+    result = communes[["insee_com"]].copy()
+
+    for nom_col, cfg in ZONAGES_SPATIAUX.items():
+        try:
+            zone_gdf = gpd.read_file(cfg["chemin"])
+            if zone_gdf.crs != communes.crs:
+                zone_gdf = zone_gdf.to_crs(communes.crs)
+            col_id = _detecter_col_id(zone_gdf, cfg["col_id"])
+
+            jointure = gpd.sjoin(
+                communes[["insee_com", "geometry"]],
+                zone_gdf[[col_id, "geometry"]],
+                how="left",
+                predicate="within",
+            )
+            agrege = (
+                jointure.groupby("insee_com")[col_id]
+                .apply(lambda s: ";".join(sorted({str(v) for v in s.dropna()})))
+                .reset_index()
+                .rename(columns={col_id: nom_col})
+            )
+            result = result.merge(agrege, on="insee_com", how="left")
+            result[nom_col] = result[nom_col].fillna("")
+        except Exception as e:
+            print(f"  ⚠ Zonage '{nom_col}' : {e}")
+            result[nom_col] = ""
+
+    return result
 
 def charger_communes() -> gpd.GeoDataFrame:
     """..."""
@@ -238,6 +295,21 @@ def charger_communes() -> gpd.GeoDataFrame:
     communes["ids_par_programme"] = communes["insee_com"].apply(
         lambda insee: ids_par_commune.get(insee, {})
     )
+    zonages = _calculer_zonages(communes)
+    communes = communes.merge(zonages, on="insee_com", how="left")
+
+    # QPV : jointure attributaire directe sur insee_com (plus de jointure
+    # spatiale nécessaire maintenant que le fichier QPV est en centroïdes).
+    qpv_brut = gpd.read_file(QPV_CENTROIDE)
+    qpv_brut["insee_com"] = qpv_brut["insee_com"].astype(str)
+    id_qp = (
+        qpv_brut.groupby("insee_com")["code_qp"]
+        .apply(lambda s: ";".join(sorted({str(v) for v in s.dropna()})))
+        .reset_index()
+        .rename(columns={"code_qp": "id_qp"})
+    )
+    communes = communes.merge(id_qp, on="insee_com", how="left")
+    communes["id_qp"] = communes["id_qp"].fillna("")
 
     _set("communes", communes)
     return communes
@@ -267,6 +339,31 @@ def get_communes_json() -> tuple[bytes, str]:
     _cache["communes_gz_ts"] = communes_ts
     return body, etag
 
+# Colonnes territoriales reportées des communes vers les QPV, pour permettre
+# le filtrage par territoire recherché côté carte (comme pour les programmes).
+_COLONNES_TERRITOIRE_QPV = ["insee_dep", "insee_reg", "siren_epci", "insee_arr", "id_crte", "niveau_montagne"]
+
+
+def charger_qpv() -> gpd.GeoDataFrame:
+    """Charge les centroïdes QPV et leur ajoute les codes territoriaux de la commune de rattachement."""
+    if _valide("qpv"):
+        return _get("qpv")
+
+    print("Chargement des QPV…")
+    qpv = gpd.read_file(QPV_CENTROIDE)
+    qpv["insee_com"] = qpv["insee_com"].astype(str)
+
+    communes = charger_communes()
+    colonnes_dispo = [c for c in _COLONNES_TERRITOIRE_QPV if c in communes.columns]
+    qpv = qpv.merge(communes[["insee_com"] + colonnes_dispo], on="insee_com", how="left")
+
+    _set("qpv", qpv)
+    return qpv
+
+
+def get_qpv_json() -> dict:
+    """GeoJSON des QPV (centroïdes) enrichi des codes territoriaux."""
+    return json.loads(charger_qpv().to_json())
 
 # ---------------------------------------------------------------------------
 # INDEX DE RECHERCHE TEXTUELLE
@@ -277,18 +374,19 @@ def get_communes_json() -> tuple[bytes, str]:
 
 # Définition des couches indexées : (type, clé cache, fichier, colonne nom, colonne code)
 _SPECS_INDEX = [
-    ("commune",        "geo_communes",        COMMUNES_POLYGONE,        "lib_com",  "insee_com"),
-    ("epci",           "geo_epci",            EPCI_EPT_POLYGONE,        "lib_epci", "siren_epci"),
-    ("departement",    "geo_departements",    DEPARTEMENTS_POLYGONE,    "lib_dep",  "insee_dep"),
-    ("region",         "geo_regions",         REGIONS_POLYGONE,         "lib_reg",  "insee_reg"),
-    ("arr",            "geo_arr",             ARR_POLYGONE,             "lib_arr",  "insee_arr"),
-    ("crte",           "geo_crte",            CRTE_POLYGONE,            "lib_crte", "id_crte"),
+    ("commune",        "geo_communes",        COMMUNES_POLYGONE,        "lib_com",          "insee_com"),
+    ("epci",           "geo_epci",            EPCI_EPT_POLYGONE,        "lib_epci",         "siren_epci"),
+    ("departement",    "geo_departements",    DEPARTEMENTS_POLYGONE,    "lib_dep",          "insee_dep"),
+    ("region",         "geo_regions",         REGIONS_POLYGONE,         "lib_reg",          "insee_reg"),
+    ("arr",            "geo_arr",             ARR_POLYGONE,             "lib_arr",          "insee_arr"),
+    ("crte",           "geo_crte",            CRTE_POLYGONE,            "lib_crte",         "id_crte"),
+    ("massif",         "geo_massif",          MONTAGNE_POLYGONE,        "niveau_montagne",  "niveau_montagne"),
 ]
 
 # Nombre maximum de résultats retournés par type
 _LIMITES_RECHERCHE = {
     "commune": 10, "epci": 5, "departement": 5, "region": 5,
-    "arr": 5, "crte": 5,   # ← nouveau
+    "arr": 5, "crte": 5, "massif": 10,  # ← nouveau
 }
 
 
@@ -331,19 +429,11 @@ def _get_index() -> dict:
 
 
 def rechercher_entites(q: str, types: list[str] | None = None) -> list[dict]:
-    """
-    Recherche textuelle dans l'index en mémoire (sans I/O disque).
-    Retourne au maximum _LIMITES_RECHERCHE résultats par type.
-
-    Paramètres :
-        q     : chaîne de recherche (≥ 2 caractères)
-        types : liste de types à interroger (commune, epci, departement, region)
-    """
     if not q or len(q) < 2:
         return []
 
     q_norm   = _norm(q)
-    types_ok = set(types) if types else set(_LIMITES_RECHERCHE)
+    types_ok = set(types) if types else set(_LIMITES_RECHERCHE) | {"france"}
     index    = _get_index()
     resultats = []
 
@@ -357,6 +447,11 @@ def rechercher_entites(q: str, types: list[str] | None = None) -> list[dict]:
                 n += 1
                 if n >= _LIMITES_RECHERCHE[type_]:
                     break
+
+    if "france" in types_ok and q_norm in _norm("france"):
+        b = charger_communes().total_bounds
+        resultats.append({"nom": "France entière", "code": "FR", "type": "france",
+                           "bbox": [b[0], b[1], b[2], b[3]]})
 
     return resultats
 
@@ -499,46 +594,63 @@ def get_detail_crte(id_crte: str) -> dict | None:
     res = c[c["id_crte"] == id_crte]
     return json.loads(res.to_json()) if not res.empty else None
 
+def get_detail_massif(code: str) -> dict | None:
+    """GeoJSON des communes filtrées par massif (niveau_montagne)."""
+    c = charger_communes()
+    res = c[c["niveau_montagne"] == code]
+    return json.loads(res.to_json()) if not res.empty else None
+
+
+def get_detail_france() -> dict:
+    """GeoJSON de toutes les communes, sans filtre."""
+    return json.loads(charger_communes().to_json())
+
 
 def exporter_csv(communes_insee: list[str], programmes_selectionnés: list[str]) -> str:
-    """Génère le CSV avec les bons noms de colonnes (id_acv2, etc.)."""
+    """Génère le CSV avec l'ensemble des programmes, zonages et massifs."""
     import csv
     import io
-    
+
     communes = charger_communes()
-    
+
     if communes_insee:
         communes = communes[communes["insee_com"].isin(communes_insee)]
-    
+
     typologies = {
         "centralite": charger_typologie("centralite"),
         "densite": charger_typologie("densite"),
         "ruralite": charger_typologie("ruralite"),
     }
-    
-    headers = ["insee_com", "siren_epci", "insee_arr", "insee_dep", "insee_reg"]
-    
-    if programmes_selectionnés:
-        for prog in programmes_selectionnés:
-            vrai_nom = MAPPING_ID_COLONNE.get(prog, f"id_{prog}")
-            headers.append(vrai_nom)
-    
+
+    # Colonnes territoriales de base
+    headers = ["insee_com", "siren_epci", "insee_arr", "insee_dep", "insee_reg",
+               "id_crte", "niveau_montagne"]
+
+    # Tous les programmes existants (indépendamment de la sélection sur la carte)
+    colonnes_programmes = list(dict.fromkeys(MAPPING_ID_COLONNE.values()))
+    headers.extend(colonnes_programmes)
+
+    # Zonages calculés par jointure spatiale
+    colonnes_zonages = list(ZONAGES_SPATIAUX.keys()) + ["id_qp"]
+    headers.extend(colonnes_zonages)
+
+    # Typologies
     headers.extend([
         "Niveau de centres d'équipements et de services des communes 2021",
         "Grille communale de densité en 7 niveaux",
         "Typologie diversité des ruralités (Commune)",
     ])
-    
+
     output = io.StringIO()
     writer = csv.DictWriter(
-        output, 
-        fieldnames=headers, 
+        output,
+        fieldnames=headers,
         extrasaction='ignore',
         delimiter=';',
         quoting=csv.QUOTE_MINIMAL
     )
     writer.writeheader()
-    
+
     for _, row in communes.iterrows():
         insee = row["insee_com"]
         ligne = {
@@ -547,18 +659,25 @@ def exporter_csv(communes_insee: list[str], programmes_selectionnés: list[str])
             "insee_arr": row.get("insee_arr", ""),
             "insee_dep": row.get("insee_dep", ""),
             "insee_reg": row.get("insee_reg", ""),
+            "id_crte": row.get("id_crte", ""),
+            "niveau_montagne": row.get("niveau_montagne", ""),
         }
-        
+
+        # Identifiants de TOUS les programmes
         ids_dict = row.get("ids_par_programme", {})
-        
-        for prog in programmes_selectionnés:
-            vrai_nom_colonne = MAPPING_ID_COLONNE.get(prog, f"id_{prog}")
-            ids_list = ids_dict.get(vrai_nom_colonne, [])
-            ligne[vrai_nom_colonne] = ";".join(ids_list) if ids_list else ""
-        
+        for col_prog in colonnes_programmes:
+            ids_list = ids_dict.get(col_prog, [])
+            ligne[col_prog] = ";".join(ids_list) if ids_list else ""
+
+        # Zonages (jointure spatiale)
+        for col_zonage in colonnes_zonages:
+            ligne[col_zonage] = row.get(col_zonage, "")
+
+        # Typologies
+        ligne["Niveau de centres d'équipements et de services des communes 2021"] = typologies["centralite"].get(insee, "")
         ligne["Grille communale de densité en 7 niveaux"] = typologies["densite"].get(insee, "")
         ligne["Typologie diversité des ruralités (Commune)"] = typologies["ruralite"].get(insee, "")
-        
+
         writer.writerow(ligne)
-    
+
     return output.getvalue()

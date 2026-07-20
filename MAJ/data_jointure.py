@@ -49,6 +49,7 @@ df_montagne = pd.read_csv(
     os.path.join(CSV_DIR, "montagne.csv"),
     dtype={"insee_com": str}
 )
+csvs.append(df_montagne[["insee_com", "niveau_montagne"]])
 
 # Seuls les GeoJSON communaux reçoivent les typologies standards
 geojson_files = sorted([
@@ -60,7 +61,7 @@ geojson_files = sorted([
 # Jointure standards et export (centralité, densité, ruralité)
 # ---------------------------------------------------------------------------
 
-NIVEAU_COLS = ["niveau_centralite", "niveau_ruralite", "niveau_densite"]
+NIVEAU_COLS = ["niveau_centralite", "niveau_ruralite", "niveau_densite", "niveau_montagne"]
 
 for geojson_file in geojson_files:
     gdf = gpd.read_file(os.path.join(GEOJSON_DIR, geojson_file))
@@ -83,17 +84,15 @@ for geojson_file in geojson_files:
 
 gdf_montagne = gpd.read_file(GEOJSON_MONTAGNE_SOURCE)
 gdf_montagne["insee_com"] = gdf_montagne["insee_com"].astype(str)
+gdf_montagne = gdf_montagne.drop(columns=["niveau_montagne"], errors="ignore")  # ← évite le conflit si déjà présent
 
 gdf_montagne = gdf_montagne.merge(
     df_montagne[["insee_com", "niveau_montagne"]],
     on="insee_com",
-    how="inner"  # on exclut les communes sans massif (ex-"null - undefined")
+    how="inner"
 )
 
-# Dissolve : fusion des géométries communales par nom de massif
 gdf_montagne = gdf_montagne.dissolve(by="niveau_montagne", as_index=False)
-
-# On ne conserve que le nom du massif et la géométrie
 gdf_montagne = gdf_montagne[["niveau_montagne", "geometry"]]
 
 output_montagne = os.path.join(OUTPUT_DIR, "polygone-4326_montagne.geojson")
