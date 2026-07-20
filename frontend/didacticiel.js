@@ -9,7 +9,10 @@
         { cible: '#btn-legende',  texte: 'Sélectionnez les programmes et dispositifs à afficher' },
         { cible: '#btn-couches',  texte: 'Choisissez les limites administratives et le fond de carte' },
         { cible: '#slider-tab',   texte: 'Consultez les graphiques du territoire' },
-    ];
+    ]
+
+    const STORAGE_KEY = 'anct_tuto_vu';
+    const DUREE_CACHE_MS = 6 * 60 * 60 * 1000; // 6 heures
 
     const TEXTE_ENTETE = 'Suivez ces étapes dans l\'ordre pour afficher des résultats sur la carte :';
 
@@ -34,7 +37,7 @@
 
         btnPasser = document.createElement('button');
         btnPasser.id = 'tuto-btn-passer';
-        btnPasser.textContent = 'Passer';
+        btnPasser.textContent = 'Suivant';
 
         overlay.appendChild(svg);
         overlay.appendChild(card);
@@ -130,7 +133,20 @@
     }
 
 
+    function fermerTuto() {
+        overlay.classList.remove('visible');
+        setTimeout(() => { overlay.hidden = true; }, 250);
+        localStorage.setItem(STORAGE_KEY, Date.now().toString());
+    }
+
+    function tutoDejaVuRecemment() {
+        const ts = localStorage.getItem(STORAGE_KEY);
+        if (!ts) return false;
+        return (Date.now() - parseInt(ts, 10)) < DUREE_CACHE_MS;
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+        if (tutoDejaVuRecemment()) return;
         construireDOM();
         ouvrirTuto();
     });
