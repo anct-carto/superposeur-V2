@@ -101,6 +101,14 @@ DATASETS = {
         "id_col":   "id_crte",
         "lib_col":  "lib_crte",
     },
+    "tec": {
+        "api":      None,
+        "resource": "4fbcd679-5b27-4261-94f2-2f22a93ddadd",
+        "output":   BASE / "polygone-4326_tec.geojson",
+        "id_col":   "id_tec",
+        "lib_col":  None,
+        "com_key":  "insee",   # ← nouveau : siren_groupement contient déjà un insee_com, pas un SIREN
+    },
 }
 
 
@@ -203,15 +211,25 @@ def _run_dissolve_dataset(name, df, cfg):
 
     frames = []
 
-    # --- COM : siren_groupement → insee_com via SQLite, géométrie via gpkg layer com ---
+# --- COM : géométrie via gpkg layer com (centroïdes) ---
     sub_com = df[mask_com]
     if not sub_com.empty:
-        conn    = sqlite3.connect(DB)
-        df_ngeo = pd.read_sql_query("SELECT insee_com, siren_com FROM ngeo", conn)
-        conn.close()
-        sub_com = sub_com.merge(df_ngeo, left_on="siren_groupement", right_on="siren_com", how="inner")
-        gdf_com = gpd.read_file(GPKG[0], layer="com").to_crs(4326) 
-        frames.append(gdf_com[["insee_com", "geometry"]].merge(sub_com, on="insee_com", how="inner"))
+        gdf_com = gpd.read_file(GPKG[0], layer="com").to_crs(4326)
+
+        if cfg.get("com_key") == "insee":
+            sub_com = sub_com.copy()
+            sub_com["siren_groupement"] = sub_com["siren_groupement"].str.strip().str.zfill(5)
+            frames.append(
+                gdf_com[["insee_com", "geometry"]].merge(
+                    sub_com, left_on="insee_com", right_on="siren_groupement", how="inner"
+                )
+            )
+        else:
+            conn    = sqlite3.connect(DB)
+            df_ngeo = pd.read_sql_query("SELECT insee_com, siren_com FROM ngeo", conn)
+            conn.close()
+            sub_com = sub_com.merge(df_ngeo, left_on="siren_groupement", right_on="siren_com", how="inner")
+            frames.append(gdf_com[["insee_com", "geometry"]].merge(sub_com, on="insee_com", how="inner"))
 
     # --- EPT : jointure sur siren_ept ---
     sub_ept = df[mask_ept]
@@ -267,8 +285,12 @@ def _run_qpv():
     """
     Construit le GeoJSON QPV :
       - Télécharge le CSV data.gouv des quartiers prioritaires
-      - Corrige le BOM UTF-8 et les colonnes parasites
+      - Corrige le BOM UTF-8
+      - Retire l'enrobage Excel ="..." autour des codes insee_com
+      - Éclate les cellules insee_com contenant plusieurs communes ("A;B")
       - Corrige les insee_com sur 4 chiffres (zéro manquant en tête)
+      - Convertit les codes arrondissement (Paris/Lyon/Marseille) vers
+        le code commune correspondant, sinon ces QPV ne matchent jamais
       - Joint les géométries communales depuis le gpkg
       - Agrège par insee_com : une ligne par commune avec la liste
         des code_qp et lib_qp des QPV qu'elle contient
@@ -278,14 +300,47 @@ def _run_qpv():
     url = "https://www.data.gouv.fr/api/1/datasets/r/4c6bb7f3-97b6-4834-8a3a-f5f8b3e6735b"
     df  = pd.read_csv(
         io.BytesIO(requests.get(url).content),
-        dtype=str, sep=None, engine="python",
+        dtype=str,
+        sep=";",                   # data.gouv précise explicitement ce séparateur
+        engine="python",
         encoding="utf-8-sig",       # supprime le BOM \ufeff
-        usecols=["code_qp", "lib_qp", "insee_com", "lib_com"],  # ignore les colonnes unnamed
     )
     df.columns = df.columns.str.strip().str.lower()
 
+    print("Colonnes brutes qpv:", df.columns.tolist())
+    print("Shape brute qpv:", df.shape)
+
+    # Ne garder que les colonnes utiles
+    df = df[["code_qp", "lib_qp", "insee_com", "lib_com"]]
+
+    # Retire l'enrobage Excel ="..." qui protège les zéros en tête
+    df["insee_com"] = df["insee_com"].str.replace(r'^="?|"$', '', regex=True)
+
+    # Certaines cellules contiennent plusieurs communes séparées par ";"
+    # (QPV à cheval sur plusieurs communes) -> on éclate en plusieurs lignes
+    df["insee_com"] = df["insee_com"].str.split(";")
+    df = df.explode("insee_com")
+
     # Correction du zéro manquant sur les insee_com à 4 chiffres
     df["insee_com"] = df["insee_com"].str.strip().str.zfill(5)
+
+    # --- Correction arrondissements Paris/Lyon/Marseille -> code commune ---
+    # Le CSV QPV référence les arrondissements (75101-75120, 69381-69389,
+    # 13201-13216) alors que la couche admin "com" référence la commune
+    # entière (75056, 69123, 13055). Sans cette conversion, le merge final
+    # ignore silencieusement tous les QPV de ces 3 villes.
+    def to_code_commune(code):
+        if code.startswith("751"):
+            return "75056"
+        if code.startswith("6938"):
+            return "69123"
+        if code.startswith("132"):
+            return "13055"
+        return code
+
+    df["insee_com"] = df["insee_com"].apply(to_code_commune)
+
+    print("Exemples insee_com après correction:", df["insee_com"].head(10).tolist())
 
     # Agrégation par commune : liste des code_qp et lib_qp
     df_agg = (
@@ -296,10 +351,17 @@ def _run_qpv():
             lib_qp  = ("lib_qp",  lambda x: ", ".join(x.dropna().unique())),
         )
     )
+    print("Shape après agrégation:", df_agg.shape)
 
     # Jointure avec les géométries communales
     gdf_com = gpd.read_file(BASE / "centroide-4326_com.geojson")
+    print("Dtype insee_com gdf_com:", gdf_com["insee_com"].dtype)
+    print("Dtype insee_com df_agg:", df_agg["insee_com"].dtype)
+    print("Exemples gdf_com insee_com:", gdf_com["insee_com"].head(10).tolist())
+
     gdf = gdf_com[["insee_com", "geometry"]].merge(df_agg, on="insee_com", how="inner")
+    print("Shape après merge:", gdf.shape)
+
     gdf = gpd.GeoDataFrame(gdf[["insee_com", "lib_com", "code_qp", "lib_qp", "geometry"]], crs="EPSG:4326")
 
     output = BASE / "centroide-4326_qpv.geojson"
@@ -307,6 +369,40 @@ def _run_qpv():
     gdf.to_file(output, driver="GeoJSON")
     print(f"  → qpv : {len(gdf)} communes avec au moins un QPV exportées")
 
+def _fix_mojibake(s):
+    """Corrige un texte UTF-8 mal décodé en Latin-1 (ex: 'BarthÃ©lemy' -> 'Barthélemy')."""
+    if not isinstance(s, str):
+        return s
+    try:
+        return s.encode("latin1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return s
+
+
+def _preparer_tec(df):
+    """
+    Prépare le CSV Territoires d'Engagement avant dissolve :
+      - retire les id_tec de la forme "-103", "-104"... (valeurs négatives = bugs)
+        les préfixes "ai-", "cco-", "patde-", "pptde-" sont conservés intégralement
+      - ne garde que les lignes "commune" et "epci" (retire arrondissement,
+        arrondissement municipal, departement, region, territoire)
+      - renomme "commune" -> "COM" pour matcher la branche SQLite de
+        _run_dissolve_dataset ; "epci" -> "EPCI" (branche générique EPCI)
+      - corrige l'encodage mojibake de lib_groupement
+    """
+    df = df.copy()
+
+    df["id_tec"] = df["id_tec"].str.strip()
+    df = df[~df["id_tec"].str.match(r"^-\d+$").fillna(False)]
+
+    df["nature_juridique"] = df["nature_juridique"].str.strip().str.lower()
+    df = df[df["nature_juridique"].isin(["commune", "epci"])]
+    df["nature_juridique"] = df["nature_juridique"].replace({"commune": "COM", "epci": "EPCI"})
+
+    if "lib_groupement" in df.columns:
+        df["lib_groupement"] = df["lib_groupement"].apply(_fix_mojibake)
+
+    return df
 
 def run_datasets():
     """Télécharge chaque CSV, joint les géométries admin, exporte en GeoJSON."""
@@ -314,10 +410,13 @@ def run_datasets():
         print(f"Traitement {name}…")
         df = get_csv(cfg["api"], cfg["resource"])
         df.columns = df.columns.str.strip().str.lower()
+
+        if name == "tec":
+            df = _preparer_tec(df)
+
         _run_dissolve_dataset(name, df, cfg)
 
     _run_qpv()
-
 
 # ===========================================================================
 # MAIN

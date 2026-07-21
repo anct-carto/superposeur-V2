@@ -444,24 +444,46 @@ async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
         const data = await _fetchGeoJSON(meta.url);
         map.addSource(sourceId, { type: 'geojson', data });
 
+        const layerIdPts = `${layerId}-pts`;
+
         if (COUCHES_POINT.has(key)) {
             map.addLayer({ id: layerId, type: 'circle', source: sourceId, paint: {
                 'circle-radius': 5, 'circle-color': couleur, 'circle-opacity': 0.75,
                 'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff',
             }});
-            
-        if (COUCHES_TERRITORIALISABLES.has(key) && filtreGeo) {
-            map.setFilter(layerId, filtreGeo);
-        }
+
+            if (COUCHES_TERRITORIALISABLES.has(key) && filtreGeo) {
+                map.setFilter(layerId, filtreGeo);
+            }
+        } else if (COUCHES_MIXTES.has(key)) {
+            // Sous-ensemble Polygon — même rendu que les couches polygones classiques
+            map.addLayer({ id: layerId, type: 'fill', source: sourceId,
+                filter: ['==', ['geometry-type'], 'Polygon'],
+                paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } });
+            map.addLayer({ id: `${layerId}-stroke`, type: 'line', source: sourceId,
+                filter: ['==', ['geometry-type'], 'Polygon'],
+                paint: { 'line-color': couleur, 'line-width': 1.5 } });
+
+            // Sous-ensemble Point — même rendu que les couches ponctuelles
+            map.addLayer({ id: layerIdPts, type: 'circle', source: sourceId,
+                filter: ['==', ['geometry-type'], 'Point'],
+                paint: {
+                    'circle-radius': 5, 'circle-color': couleur, 'circle-opacity': 0.75,
+                    'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff',
+                }});
         } else {
             map.addLayer({ id: layerId, type: 'fill', source: sourceId, paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } });
             map.addLayer({ id: `${layerId}-stroke`, type: 'line', source: sourceId, paint: { 'line-color': couleur, 'line-width': 1.5 } });
         }
+
         programmesOrdonnes.forEach((_, i) => { if (map.getLayer(`prog-${i}`)) map.moveLayer(`prog-${i}`); });
+
         const onClick = (f, e) => {
             const p = f.properties;
             const idKey = Object.keys(p).find(k => k.startsWith('id_'));
-            if (idKey) _surlignerPolygone(layerId, idKey, p[idKey], couleur);
+            // Le surlignage animé ne s'applique qu'aux entités polygones (comme sur crte/ti)
+            if (idKey && f.geometry.type !== 'Point') _surlignerPolygone(layerId, idKey, p[idKey], couleur);
+
             const lignes = [];
             if (p.code_qp) {
                 if (p.lib_com) lignes.push(`<tr><th>Commune</th><td>${p.lib_com}</td></tr>`);
@@ -481,6 +503,12 @@ async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
         _coucheClicHandlers[layerId] = onClick;
         map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+
+        if (COUCHES_MIXTES.has(key)) {
+            _coucheClicHandlers[layerIdPts] = onClick;
+            map.on('mouseenter', layerIdPts, () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', layerIdPts, () => { map.getCanvas().style.cursor = ''; });
+        }
     } catch (err) {
         console.error(`[map.js] Erreur chargement couche "${key}" :`, err);
     }
@@ -499,9 +527,10 @@ async function _chargerCoucheAdmin(key, sourceId, layerId, couleur) {
 
 function _retirerCouche(sourceId, layerId) {
     delete _coucheClicHandlers[layerId];
+    delete _coucheClicHandlers[`${layerId}-pts`];
     if (surlignage?.layerId === layerId) _reinitialiserSurlignage();
     const glowId = `${layerId}-glow`;
-    [glowId, `${layerId}-stroke`, layerId].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+    [glowId, `${layerId}-stroke`, `${layerId}-pts`, layerId].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
     if (map.getSource(sourceId)) map.removeSource(sourceId);
 }
 

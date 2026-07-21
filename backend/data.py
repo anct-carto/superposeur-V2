@@ -94,6 +94,7 @@ QPV_CENTROIDE = f"{_BASE}/centroide-4326_qpv.geojson"
 AMI_POLYGONE  = f"{_BASE}/polygone-4326_ami.geojson"
 AMM_POLYGONE  = f"{_BASE}/polygone-4326_amm.geojson"
 FABP_POLYGONE = f"{_BASE}/polygone-4326_fabriques.geojson"
+TEC_POLYGONE = f"{_BASE}/polygone-4326_tec.geojson"
 
 # Zonages nécessitant une jointure spatiale (pas déjà présents dans les communes)
 ZONAGES_SPATIAUX = {
@@ -101,6 +102,7 @@ ZONAGES_SPATIAUX = {
     "id_ami":  {"chemin": AMI_POLYGONE,  "col_id": None},
     "id_amm":  {"chemin": AMM_POLYGONE,  "col_id": None},
     "id_fabp": {"chemin": FABP_POLYGONE, "col_id": None},
+    "id_tec":  {"chemin": TEC_POLYGONE,  "col_id": None},
 }
 
 # ---------------------------------------------------------------------------

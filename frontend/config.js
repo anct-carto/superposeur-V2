@@ -96,6 +96,7 @@ qpv: { nom: 'Quartier prioritaire de la ville', couleur: '#E1000F', groupe: 'Pol
     ami:    { nom: 'Avenir montagne ingénierie',      couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_ami.geojson' },
     amm:    { nom: 'Avenir montagne mobilité',        couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_amm.geojson' },
     crte:   { nom: 'CRTE',                            couleur: '#3ca331', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_crte.geojson' },
+    tec:    { nom: "Territoires d'engagement",        couleur: '#7d5ba6', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_tec.geojson' },
 
     // --- Commerces ---
     comrur: { nom: 'Commerces ruraux',                                    couleur: '#8a3f5c', groupe: 'Commerces', type: 'cercle' },
@@ -155,6 +156,7 @@ const PROGRAMMES_COUCHES = {
     amm:  { nom: 'Avenir montagne mobilité',   couleur: '#327d48', url: '../data/admin/polygone-4326_amm.geojson'       },
     crte: { nom: 'CRTE',                       couleur: '#3ca331', url: '../data/admin/polygone-4326_crte.geojson'      },
     qpv: { nom: 'Quartiers prioritaires', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
+    tec:  { nom: "Territoires d'engagement",   couleur: '#7d5ba6', url: '../data/admin/polygone-4326_tec.geojson'       },
 };
 
 /**
@@ -191,6 +193,12 @@ const LIMITES_ADMIN = {
 const COUCHES_CONTOUR = new Set(['com', 'arr', 'epci', 'dep', 'reg', 'montagne']);
 /** Couches-programmes dont la géométrie est un point (et non un polygone). */
 const COUCHES_POINT = new Set(['qpv']);
+/**
+ * Couches-programmes mixtes : géométries Point ET Polygon dans la même
+ * source GeoJSON (ex: tec — communes en point, EPCI en polygone).
+ * Chaque partie est rendue avec le style habituel de sa catégorie.
+ */
+const COUCHES_MIXTES = new Set(['tec']);
 /**
  * Couches (hors programmes en cercles) auxquelles on applique le filtre
  * de territoire (filtreGeo) lors d'une recherche, comme pour les prog-i.
