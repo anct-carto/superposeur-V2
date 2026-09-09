@@ -90,7 +90,7 @@ const PROGRAMMES_META = {
     cde:    { nom: "Cités de l'emploi",               couleur: '#2E86AB', groupe: 'Politique de la ville', type: 'cercle' },
     cite:   { nom: 'Cités éducatives',                couleur: '#E84855', groupe: 'Politique de la ville', type: 'cercle' },
     // Dans PROGRAMMES_META
-qpv: { nom: 'Quartier prioritaire de la ville', couleur: '#E1000F', groupe: 'Politique de la ville', type: 'point', url: `${API_URL}/api/qpv` },
+qpv: { nom: 'Commune ayant au moins un quartier prioritaire de la ville', couleur: '#E1000F', groupe: 'Politique de la ville', type: 'point', url: `${API_URL}/api/qpv` },
 
     // --- Territoires, transition écologique ---
     ami:    { nom: 'Avenir montagne ingénierie',      couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_ami.geojson' },
@@ -155,7 +155,7 @@ const PROGRAMMES_COUCHES = {
     ami:  { nom: 'Avenir montagne ingénierie', couleur: '#327d48', url: '../data/admin/polygone-4326_ami.geojson'       },
     amm:  { nom: 'Avenir montagne mobilité',   couleur: '#327d48', url: '../data/admin/polygone-4326_amm.geojson'       },
     crte: { nom: 'CRTE',                       couleur: '#3ca331', url: '../data/admin/polygone-4326_crte.geojson'      },
-    qpv: { nom: 'Quartiers prioritaires', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
+    qpv: { nom: 'Commune ayant au moins un quartiers prioritaires', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
     tec:  { nom: "Territoires d'engagement",   couleur: '#7d5ba6', url: '../data/admin/polygone-4326_tec.geojson'       },
 };
 

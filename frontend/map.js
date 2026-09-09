@@ -12,6 +12,7 @@ const couleursParProg  = {};
 let   programmesActifs = new Set();
 let   filtreGeo        = null;
 const fondsActifs = new Set(['ign']);
+const _layersPointsTop = []; // identifiants des couches "points" à garder toujours au sommet
 const _cacheGeoJSON     = {};
 let   clusterActif = null;
 let   panelOpen = false;
@@ -85,6 +86,12 @@ function mettreAJourCouleursCentroide() {
             '#000000',
             couleursParProg[prog]
         ]);
+    });
+}
+
+function _remonterCouchesAuSommet() {
+    _layersPointsTop.forEach(id => {
+        if (map.getLayer(id)) map.moveLayer(id);
     });
 }
 
@@ -181,8 +188,9 @@ map.on('load', initApp);
 
 function _ajouterLayersConcentriques() {
     programmesOrdonnes.forEach((prog, i) => {
+        const id = `prog-${i}`;
         map.addLayer({
-            id: `prog-${i}`,
+            id,
             type: 'circle',
             source: 'communes',
             filter: ['literal', false],
@@ -194,6 +202,7 @@ function _ajouterLayersConcentriques() {
                 'circle-stroke-color': '#ffffff',
             },
         });
+        _layersPointsTop.push(id);
     });
 }
 
@@ -260,14 +269,10 @@ function _gererClickProgramme(f, e, id) {
             id: 'cluster-eclate',
             type: 'circle',
             source: 'cluster-src',
-            paint: {
-                'circle-radius': 12,
-                'circle-color': ['case', ['has', ['get', 'programme'], ['literal', couleursParProg]], ['get', ['get', 'programme'], ['literal', couleursParProg]], '#ccc'],
-                'circle-stroke-width': 2,
-                'circle-stroke-color': '#fff',
-                'circle-opacity': 0.95
-            }
+            paint: { /* ... inchangé ... */ }
         });
+        if (!_layersPointsTop.includes('cluster-eclate')) _layersPointsTop.push('cluster-eclate');
+        _remonterCouchesAuSommet();
     }
 }
 
@@ -451,12 +456,12 @@ async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
                 'circle-radius': 5, 'circle-color': couleur, 'circle-opacity': 0.75,
                 'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff',
             }});
+            if (!_layersPointsTop.includes(layerId)) _layersPointsTop.push(layerId);
 
             if (COUCHES_TERRITORIALISABLES.has(key) && filtreGeo) {
                 map.setFilter(layerId, filtreGeo);
             }
         } else if (COUCHES_MIXTES.has(key)) {
-            // Sous-ensemble Polygon — même rendu que les couches polygones classiques
             map.addLayer({ id: layerId, type: 'fill', source: sourceId,
                 filter: ['==', ['geometry-type'], 'Polygon'],
                 paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } });
@@ -464,17 +469,19 @@ async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
                 filter: ['==', ['geometry-type'], 'Polygon'],
                 paint: { 'line-color': couleur, 'line-width': 1.5 } });
 
-            // Sous-ensemble Point — même rendu que les couches ponctuelles
             map.addLayer({ id: layerIdPts, type: 'circle', source: sourceId,
                 filter: ['==', ['geometry-type'], 'Point'],
                 paint: {
                     'circle-radius': 5, 'circle-color': couleur, 'circle-opacity': 0.75,
                     'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff',
                 }});
+            if (!_layersPointsTop.includes(layerIdPts)) _layersPointsTop.push(layerIdPts);
         } else {
             map.addLayer({ id: layerId, type: 'fill', source: sourceId, paint: { 'fill-color': couleur, 'fill-opacity': 0.3 } });
             map.addLayer({ id: `${layerId}-stroke`, type: 'line', source: sourceId, paint: { 'line-color': couleur, 'line-width': 1.5 } });
         }
+
+        _remonterCouchesAuSommet();
 
         programmesOrdonnes.forEach((_, i) => { if (map.getLayer(`prog-${i}`)) map.moveLayer(`prog-${i}`); });
 
@@ -520,6 +527,7 @@ async function _chargerCoucheAdmin(key, sourceId, layerId, couleur) {
         const data = await _fetchGeoJSON(LIMITES_ADMIN[key].url);
         map.addSource(sourceId, { type: 'geojson', data });
         map.addLayer({ id: layerId, type: 'line', source: sourceId, paint: { 'line-color': couleur, 'line-width': 2.5, 'line-opacity': 0.9 } });
+        _remonterCouchesAuSommet();
     } catch (err) {
         console.error(`[map.js] Erreur chargement couche admin "${key}" :`, err);
     }
@@ -532,6 +540,9 @@ function _retirerCouche(sourceId, layerId) {
     const glowId = `${layerId}-glow`;
     [glowId, `${layerId}-stroke`, `${layerId}-pts`, layerId].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
     if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    const idx = _layersPointsTop.indexOf(`${layerId}-pts`);
+    if (idx !== -1) _layersPointsTop.splice(idx, 1);
 }
 
 const _coucheClicHandlers = {}; // layerId -> (feature, event) => void

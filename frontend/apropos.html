@@ -49,6 +49,18 @@
             text-decoration: none;
         }
         a.contact:hover { text-decoration: underline; }
+
+        li.service-item {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+        a.service-link {
+            color: var(--color-accent);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        a.service-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -62,6 +74,18 @@
         <li>Insee – typologie en 7 classes des communes</li>
         <li>Acadie / Magali Talandier – typologie de la diversité des ruralités des communes</li>
         <li>Inrae / Caesar - 2021 – typologie des centralités</li>
+    </ul>
+
+    <h2>Autres services</h2>
+    <ul>
+        <li class="service-item">
+            <span>Observatoire des territoires</span>
+            <a href="https://www.observatoire-des-territoires.gouv.fr/outils/cartographie-interactive/#view=map76&c=indicator" class="service-link" target="_blank" rel="noopener noreferrer">lien</a>
+        </li>
+        <li class="service-item">
+            <span>SIGville</span>
+            <a href="https://sig.ville.gouv.fr" class="service-link" target="_blank" rel="noopener noreferrer">lien</a>
+        </li>
     </ul>
 
     <h2>Contact</h2>
