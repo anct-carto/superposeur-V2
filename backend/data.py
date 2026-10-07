@@ -435,7 +435,7 @@ def rechercher_entites(q: str, types: list[str] | None = None) -> list[dict]:
         return []
 
     q_norm   = _norm(q)
-    types_ok = set(types) if types else set(_LIMITES_RECHERCHE) | {"france"}
+    types_ok = set(types) if types else set(_LIMITES_RECHERCHE)
     index    = _get_index()
     resultats = []
 
@@ -449,11 +449,6 @@ def rechercher_entites(q: str, types: list[str] | None = None) -> list[dict]:
                 n += 1
                 if n >= _LIMITES_RECHERCHE[type_]:
                     break
-
-    if "france" in types_ok and q_norm in _norm("france"):
-        b = charger_communes().total_bounds
-        resultats.append({"nom": "France entière", "code": "FR", "type": "france",
-                           "bbox": [b[0], b[1], b[2], b[3]]})
 
     return resultats
 

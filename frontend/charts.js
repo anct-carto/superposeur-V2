@@ -135,11 +135,36 @@ async function _chargerTypologie(key) {
 // PRÉPARATION — Graphique 1
 // ---------------------------------------------------------------------------
 
+// Programmes distincts d'une commune : chaque programme compte 1 par commune.
+// QPV est un programme virtuel, basé sur id_qp.
+function _progsDeFeature(f) {
+    const progs = new Set(f.properties.liste_programmes || []);
+    if (String(f.properties.id_qp ?? '').trim()) progs.add('qpv');
+    return [...progs];
+}
+
+// Découpe un libellé long en plusieurs lignes (max `max` caractères par ligne).
+function _decouperLabel(texte, max = 28) {
+    const mots = String(texte).split(' ');
+    const lignes = [];
+    let courante = '';
+    mots.forEach(mot => {
+        if ((courante + ' ' + mot).trim().length > max) {
+            if (courante) lignes.push(courante);
+            courante = mot;
+        } else {
+            courante = (courante + ' ' + mot).trim();
+        }
+    });
+    if (courante) lignes.push(courante);
+    return lignes;
+}
+
 function _preparerProgrammes(features) {
     const compteProg = {};
 
     features.forEach(f => {
-        (f.properties.liste_programmes || []).forEach(p => {
+        _progsDeFeature(f).forEach(p => {
             if (!PROGRAMMES_GRAPHIQUE.has(p)) return;
             if (!programmesActifs.has(p)) return;
             compteProg[p] = (compteProg[p] || 0) + 1;
@@ -149,7 +174,7 @@ function _preparerProgrammes(features) {
     const trie = Object.entries(compteProg).sort((a, b) => b[1] - a[1]);
 
     return {
-        labels:   trie.map(([p]) => LABELS_PROGRAMMES[p] || p),
+        labels:   trie.map(([p]) => _decouperLabel(LABELS_PROGRAMMES[p] || p)),
         valeurs:  trie.map(([, v]) => v),
         couleurs: trie.map(([p]) => (PROGRAMMES_META[p] ?? {}).couleur ?? '#cccccc'),
     };
@@ -173,7 +198,7 @@ async function _preparerTypologie(features) {
         const classe = typoMap[insee];
         if (!classe || !comptage[classe]) return;
 
-        (f.properties.liste_programmes || []).forEach(p => {
+        _progsDeFeature(f).forEach(p => {
             if (!PROGRAMMES_GRAPHIQUE.has(p)) return;
             if (!programmesActifs.has(p)) return;
             comptage[classe][p] = (comptage[classe][p] || 0) + 1;

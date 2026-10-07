@@ -7,6 +7,7 @@
 // ÉTAT GLOBAL
 // ---------------------------------------------------------------------------
 
+let _communesRef = []; // features GeoJSON d'origine (une par commune)
 let programmesOrdonnes = [];
 const couleursParProg  = {};
 let   programmesActifs = new Set();
@@ -14,8 +15,8 @@ let   filtreGeo        = null;
 const fondsActifs = new Set(['ign']);
 const _layersPointsTop = []; // identifiants des couches "points" à garder toujours au sommet
 const _cacheGeoJSON     = {};
-let   clusterActif = null;
 let   panelOpen = false;
+let _communesFiltrees = null;        // null = aucun filtre (France entière)
 
 // ---------------------------------------------------------------------------
 // INITIALISATION MAPLIBRE
@@ -61,33 +62,9 @@ const btnReset = document.getElementById('btn-reset');
 // FONCTIONS UTILITAIRES
 // ---------------------------------------------------------------------------
 
-function _creerPointsEclatement(centre, programmes, commune, lib_com) {
-    const rayon = 0.006 + Math.log(programmes.length) * 0.004;
-    return {
-        type: "FeatureCollection",
-        features: programmes.map((prog, idx) => {
-            const angle = (idx / programmes.length) * Math.PI * 2;
-            return {
-                type: "Feature",
-                geometry: { type: "Point", coordinates: [centre[0] + rayon * Math.cos(angle), centre[1] + rayon * Math.sin(angle)] },
-                properties: { programme: prog, commune, lib_com, idx }
-            };
-        })
-    };
-}
 
-function mettreAJourCouleursCentroide() {
-    programmesOrdonnes.forEach((prog, i) => {
-        const id = `prog-${i}`;
-        if (!map.getLayer(id)) return;
-        map.setPaintProperty(id, 'circle-color', [
-            'case',
-            ['==', ['get', 'insee_com'], ['literal', clusterActif]],
-            '#000000',
-            couleursParProg[prog]
-        ]);
-    });
-}
+
+
 
 function _remonterCouchesAuSommet() {
     _layersPointsTop.forEach(id => {
@@ -96,6 +73,8 @@ function _remonterCouchesAuSommet() {
 }
 
 function appliquerFiltre() {
+    reconstruirePoints();
+
     programmesOrdonnes.forEach((prog, i) => {
         const id = `prog-${i}`;
         if (!map.getLayer(id)) return;
@@ -104,21 +83,13 @@ function appliquerFiltre() {
             map.setFilter(id, ['literal', false]);
             return;
         }
-
-        const filtreProg = ['in', prog, ['get', 'liste_programmes']];
+        const filtreProg = ['==', ['get', 'prog'], prog];
         map.setFilter(id, filtreGeo ? ['all', filtreProg, filtreGeo] : filtreProg);
     });
-    mettreAJourCouleursCentroide();
-        COUCHES_TERRITORIALISABLES.forEach(key => {
+    COUCHES_TERRITORIALISABLES.forEach(key => {
         const layerId = `lyr-${key}`;
         if (map.getLayer(layerId)) map.setFilter(layerId, filtreGeo || null);
     });
-}
-
-function nettoyerCluster() {
-    if (map.getLayer('cluster-eclate')) map.removeLayer('cluster-eclate');
-    if (map.getSource('cluster-src')) map.removeSource('cluster-src');
-    clusterActif = null;
 }
 
 function togglePanelOpen() {
@@ -137,6 +108,48 @@ function updateChartsForActivePrograms() {
     }
 }
 
+const ESPACE_POINTS_PX = 2 * RAYON_BASE + 4;
+
+function reconstruirePoints() {
+    const src = map.getSource('communes');
+    if (!src) return;
+
+    const ordre = new Map(programmesOrdonnes.map((p, i) => [p, i]));
+    const features = [];
+
+    for (const f of _communesRef) {
+        const lp = f.properties.liste_programmes;
+        const aQpv = !!String(f.properties.id_qp ?? '').trim();
+
+        // Programmes distincts : 1 programme = 1 point, même s'il y a plusieurs sites
+        const actifs = [...new Set(aQpv ? [...lp, 'qpv'] : lp)]
+            .filter(p => programmesActifs.has(p) && ordre.has(p))
+            .sort((a, b) => ordre.get(a) - ordre.get(b));
+        const n = actifs.length;
+        if (n === 0) continue;
+
+        const creer = (prog, coords) => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: coords },
+            properties: { ...f.properties, prog, id_point: idsSites(f.properties, prog).join(' ; ') },
+        });
+
+        if (n === 1) {
+            features.push(creer(actifs[0], f.geometry.coordinates));
+            continue;
+        }
+
+        const pt = map.project(f.geometry.coordinates);
+        const R = ESPACE_POINTS_PX / (2 * Math.sin(Math.PI / n));
+        actifs.forEach((prog, k) => {
+            const a = -Math.PI / 2 + (k / n) * Math.PI * 2;
+            const ll = map.unproject([pt.x + R * Math.cos(a), pt.y + R * Math.sin(a)]);
+            features.push(creer(prog, [ll.lng, ll.lat]));
+        });
+    }
+    src.setData({ type: 'FeatureCollection', features });
+}
+
 // ---------------------------------------------------------------------------
 // INITIALISATION PRINCIPALE
 // ---------------------------------------------------------------------------
@@ -151,6 +164,7 @@ async function initApp() {
         const geojson = await fetch(`${API_URL}/api/communes`).then(r => r.json());
 
         programmesOrdonnes = programmes.filter(p => !(p in PROGRAMMES_COUCHES));
+        if (!programmesOrdonnes.includes('qpv')) programmesOrdonnes.push('qpv'); // programme virtuel, basé sur id_qp
         programmesOrdonnes.forEach(prog => {
             couleursParProg[prog] = (PROGRAMMES_META[prog] ?? {}).couleur ?? PALETTE[Object.keys(PROGRAMMES_META).indexOf(prog) % PALETTE.length];
         });
@@ -164,12 +178,14 @@ async function initApp() {
             f.properties.liste_programmes = Array.isArray(lp) ? lp : [];
         });
 
-        map.addSource('communes', { type: 'geojson', data: geojson });
+        _communesRef = geojson.features;
+        map.addSource('communes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         _ajouterLayersConcentriques();
         _initialiserHandlers();
         construireLégende();
         construirePanneauCouches();
         appliquerFiltre();
+        fetchDonneesTerritoire('', 'france', 'France');
 
         splash.style.opacity = '0';
         splash.style.pointerEvents = 'none';
@@ -181,6 +197,7 @@ async function initApp() {
 }
 
 map.on('load', initApp);
+map.on('zoomend', reconstruirePoints);
 
 // ---------------------------------------------------------------------------
 // AJOUT DES LAYERS
@@ -211,16 +228,6 @@ function _ajouterLayersConcentriques() {
 // ---------------------------------------------------------------------------
 
 function _initialiserHandlers() {
-    _coucheClicHandlers['cluster-eclate'] = (f) => {
-        const insee = f.properties.commune;
-        const lib_com = f.properties.lib_com;
-        fetchDonneesTerritoire(insee, 'commune', lib_com);
-        nettoyerCluster();
-        appliquerFiltre();
-    };
-    map.on('mouseenter', 'cluster-eclate', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'cluster-eclate', () => { map.getCanvas().style.cursor = ''; });
-
     programmesOrdonnes.forEach((_, i) => {
         const id = `prog-${i}`;
         _coucheClicHandlers[id] = (f, e) => _gererClickProgramme(f, e, id);
@@ -229,51 +236,37 @@ function _initialiserHandlers() {
     });
 }
 
+let _popupProgramme = null;   // ← à placer juste avant la fonction
+
 function _gererClickProgramme(f, e, id) {
     const insee = f.properties.insee_com;
     const lib_com = f.properties.lib_com || insee;
-    const coords = f.geometry.coordinates;
-    const prog = programmesOrdonnes[parseInt(id.split('-')[1], 10)];
-    new maplibregl.Popup({ maxWidth: '260px' })
-        .setLngLat(coords)
+    const prog = f.properties.prog;
+
+    // Ferme le popup précédent sans déclencher son retour à l'état de base
+    if (_popupProgramme) {
+        _popupProgramme._ignorerClose = true;
+        _popupProgramme.remove();
+    }
+
+    const popup = new maplibregl.Popup({ maxWidth: '260px' })
+        .setLngLat(f.geometry.coordinates)
         .setHTML(`<strong style="color:${couleursParProg[prog]}">${(PROGRAMMES_META[prog] ?? {}).nom ?? prog}</strong>
             <table style="margin-top:6px;width:100%;border-collapse:collapse;font-size:12px">
                 <tr><th>Code INSEE</th><td>${insee}</td></tr>
                 <tr><th>Commune</th><td>${lib_com}</td></tr>
+                <tr><th>Identifiants</th><td style="max-height:90px;overflow:auto;display:block;word-break:break-word">${f.properties.id_point || '—'}</td></tr>
             </table>`)
-        .addTo(map);    
-    let programmes = f.properties.liste_programmes || [];
+        .addTo(map);
 
-    if (typeof programmes === 'string') {
-        try { programmes = JSON.parse(programmes); } 
-        catch { programmes = []; }
-    }
+    popup.on('close', () => {
+        if (popup._ignorerClose) return;
+        _popupProgramme = null;
+        _revenirAuTerritoireDeRecherche();
+    });
+    _popupProgramme = popup;
 
-    programmes = programmes.filter(p => programmesActifs.has(p));
-
-    // Cleanup ancien cluster
-    nettoyerCluster();
-
-    // Set nouveau cluster actif
-    clusterActif = insee;
-    mettreAJourCouleursCentroide();
-
-    // Afficher graphiques
     fetchDonneesTerritoire(insee, 'commune', lib_com);
-
-    // Créer cluster si plusieurs programmes
-    if (programmes.length > 1) {
-        const geojson = _creerPointsEclatement(coords, programmes, insee, lib_com);
-        map.addSource('cluster-src', { type: 'geojson', data: geojson });
-        map.addLayer({
-            id: 'cluster-eclate',
-            type: 'circle',
-            source: 'cluster-src',
-            paint: { /* ... inchangé ... */ }
-        });
-        if (!_layersPointsTop.includes('cluster-eclate')) _layersPointsTop.push('cluster-eclate');
-        _remonterCouchesAuSommet();
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -442,12 +435,102 @@ async function _fetchGeoJSON(url) {
     return _cacheGeoJSON[url];
 }
 
+function _metaCouche(key) {
+    return PROGRAMMES_COUCHES[key] ?? PERIMETRES_COUCHES[key] ?? DISPOSITIFS_LEGENDE[key];
+}
+
+const _cacheComposantes = new WeakMap(); // composantes + bbox par feature
+
+function _composantes(g) {
+    if (!g) return [];
+    if (g.type === 'GeometryCollection') return g.geometries.flatMap(_composantes);
+    if (g.type === 'MultiPolygon') return g.coordinates.map(c => ({ type: 'Polygon', coordinates: c }));
+    if (g.type === 'MultiPoint') return g.coordinates.map(c => ({ type: 'Point', coordinates: c }));
+    return [g];
+}
+
+function _pointsDe(g) {
+    return g.type === 'Point' ? [g.coordinates] : g.type === 'MultiPoint' ? g.coordinates : [];
+}
+
+const TOL_PT = 0.02; // ~2 km : tolérance pour rapprocher un point d'une commune
+
+// Garde les périmètres qui touchent le territoire (affichés en entier).
+function _filtrerCollection(data, key) {
+    if (!_communesFiltrees) return data;
+    const decoupe = COUCHES_DECOUPE_PARTIES.has(key);
+    const inseeSet = new Set(_communesFiltrees.map(c => String(c.properties.insee_com)));
+    const sirenEpci = new Set(
+        _communesFiltrees.map(c => String(c.properties.siren_epci ?? '').trim()).filter(Boolean)
+    );
+    const pts = _communesFiltrees.map(c => c.geometry.coordinates);
+
+    const partieTouche = ({ g, bb }) => {
+        if (bb) {
+            return pts.some(([x, y]) =>
+                x >= bb[0] && x <= bb[2] && y >= bb[1] && y <= bb[3]
+                && turf.booleanPointInPolygon([x, y], g));
+        }
+        return _pointsDe(g).some(([px, py]) =>
+            pts.some(([x, y]) => Math.abs(x - px) < TOL_PT && Math.abs(y - py) < TOL_PT));
+    };
+
+    const features = [];
+    data.features.forEach(f => {
+        try {
+            // Rattachement par code : uniquement pour les couches affichées en entier
+            if (!decoupe) {
+                if (f.properties?.insee_com && inseeSet.has(String(f.properties.insee_com))) { features.push(f); return; }
+                const sirens = String(f.properties?.siren_groupement ?? '').split(',').map(s => s.trim());
+                if (sirens.some(s => sirenEpci.has(s))) { features.push(f); return; }
+            }
+
+            let comps = _cacheComposantes.get(f);
+            if (!comps) {
+                comps = _composantes(f.geometry).map(g => ({
+                    g,
+                    bb: g.type === 'Polygon' ? turf.bbox(g) : null,
+                }));
+                _cacheComposantes.set(f, comps);
+            }
+
+            if (!decoupe) {
+                if (comps.some(partieTouche)) features.push(f);
+                return;
+            }
+            // Mode découpe : on ne garde que les morceaux qui touchent le territoire
+            const gardees = comps.filter(partieTouche).map(c => c.g);
+            if (gardees.length) {
+                features.push({
+                    ...f,
+                    geometry: gardees.length === 1 ? gardees[0] : { type: 'GeometryCollection', geometries: gardees },
+                });
+            }
+        } catch (err) {
+            console.warn('[map.js] Feature ignorée par le filtre :', f.properties, err);
+        }
+    });
+    return { type: 'FeatureCollection', features };
+}
+
+function _majPerimetres() {
+    COUCHES_PERIMETRES_FILTREES.forEach(key => {
+        const src = map.getSource(`src-${key}`);
+        const meta = _metaCouche(key);
+        const brut = meta && _cacheGeoJSON[meta.url];
+        if (src && brut) src.setData(_filtrerCollection(brut, key));
+    });
+}
+
 async function _chargerCoucheProgramme(key, sourceId, layerId, couleur) {
     if (map.getSource(sourceId)) return;
     try {
-        const meta = PROGRAMMES_COUCHES[key] ?? PERIMETRES_COUCHES[key] ?? DISPOSITIFS_LEGENDE[key];
+        const meta = _metaCouche(key);
         const data = await _fetchGeoJSON(meta.url);
-        map.addSource(sourceId, { type: 'geojson', data });
+        map.addSource(sourceId, {
+            type: 'geojson',
+            data: COUCHES_PERIMETRES_FILTREES.has(key) ? _filtrerCollection(data) : data,
+        });
 
         const layerIdPts = `${layerId}-pts`;
 
@@ -678,27 +761,44 @@ function _afficherRésultats(résultats) {
 }
 
 function _zoomEtFiltrer(entite) {
-    nettoyerCluster();
     map.fitBounds([[entite.bbox[0], entite.bbox[1]], [entite.bbox[2], entite.bbox[3]]], { padding: 40, duration: 800 });
     const champ = CHAMPS_GEO_PAR_TYPE[entite.type];
     filtreGeo = champ ? ['==', ['get', champ], entite.code] : null;
+    _communesFiltrees = champ
+        ? _communesRef.filter(f => String(f.properties[champ] ?? '') === String(entite.code))
+        : null;
+    _reinitialiserSurlignage();
     appliquerFiltre();
+    _majPerimetres();
     btnReset.style.display = 'inline-flex';
+    _territoireRecherche = { code: entite.code, type: entite.type, nom: entite.nom };
     fetchDonneesTerritoire(entite.code, entite.type, entite.nom);
 }
 
 function _reinitialiser() {
-    nettoyerCluster();
+    _territoireRecherche = null;
     _reinitialiserSurlignage();
     filtreGeo = null;
+    _communesFiltrees = null;
     searchInput.value = '';
     appliquerFiltre();
+    _majPerimetres();
     map.flyTo({ center: [2.35, 46.8], zoom: 5, duration: 800 });
     btnReset.style.display = 'none';
+    fetchDonneesTerritoire('', 'france', 'France');
 }
 
 btnReset.addEventListener('click', _reinitialiser);
 
+let _territoireRecherche = null;   // { code, type, nom } du dernier territoire recherché
+
+function _revenirAuTerritoireDeRecherche() {
+    if (_territoireRecherche) {
+        fetchDonneesTerritoire(_territoireRecherche.code, _territoireRecherche.type, _territoireRecherche.nom);
+    } else {
+        fetchDonneesTerritoire('', 'france', 'France');
+    }
+}
 // ---------------------------------------------------------------------------
 // EXPORT CSV
 // ---------------------------------------------------------------------------
@@ -706,7 +806,7 @@ btnReset.addEventListener('click', _reinitialiser);
 document.getElementById('btn-exporter').addEventListener('click', async () => {
     if (_featuresEnCours.length === 0) { alert('Sélectionnez d\'abord un territoire.'); return; }
     const communes_insee = _featuresEnCours.map(f => f.properties.insee_com);
-    const programmes = Array.from(programmesActifs);
+      const programmes = Array.from(programmesActifs).filter(p => p !== 'qpv');
     try {
         const response = await fetch(`${API_URL}/api/export-csv`, {
             method: 'POST',

@@ -90,8 +90,7 @@ const PROGRAMMES_META = {
     cde:    { nom: "Cités de l'emploi",               couleur: '#2E86AB', groupe: 'Politique de la ville', type: 'cercle' },
     cite:   { nom: 'Cités éducatives',                couleur: '#E84855', groupe: 'Politique de la ville', type: 'cercle' },
     // Dans PROGRAMMES_META
-qpv: { nom: 'Commune ayant au moins un quartier prioritaire de la ville', couleur: '#E1000F', groupe: 'Politique de la ville', type: 'point', url: `${API_URL}/api/qpv` },
-
+    qpv: { nom: 'Commune ayant au moins un quartier prioritaire de la ville', couleur: '#E1000F', groupe: 'Politique de la ville', type: 'cercle' },
     // --- Territoires, transition écologique ---
     ami:    { nom: 'Avenir montagne ingénierie',      couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_ami.geojson' },
     amm:    { nom: 'Avenir montagne mobilité',        couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_amm.geojson' },
@@ -155,7 +154,7 @@ const PROGRAMMES_COUCHES = {
     ami:  { nom: 'Avenir montagne ingénierie', couleur: '#327d48', url: '../data/admin/polygone-4326_ami.geojson'       },
     amm:  { nom: 'Avenir montagne mobilité',   couleur: '#327d48', url: '../data/admin/polygone-4326_amm.geojson'       },
     crte: { nom: 'CRTE',                       couleur: '#3ca331', url: '../data/admin/polygone-4326_crte.geojson'      },
-    qpv: { nom: 'Commune ayant au moins un quartiers prioritaires', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
+    qpv: { nom: 'Commune ayant au moins un quartier prioritaire', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
     tec:  { nom: "Territoires d'engagement",   couleur: '#7d5ba6', url: '../data/admin/polygone-4326_tec.geojson'       },
 };
 
@@ -198,12 +197,16 @@ const COUCHES_POINT = new Set(['qpv']);
  * source GeoJSON (ex: tec — communes en point, EPCI en polygone).
  * Chaque partie est rendue avec le style habituel de sa catégorie.
  */
-const COUCHES_MIXTES = new Set(['tec']);
+const COUCHES_MIXTES = new Set(['tec', 'fabp']);
+/** Couches dont les morceaux sont filtrés individuellement (périmètres dispersés). */
+const COUCHES_DECOUPE_PARTIES = new Set(['fabp']);
 /**
  * Couches (hors programmes en cercles) auxquelles on applique le filtre
  * de territoire (filtreGeo) lors d'une recherche, comme pour les prog-i.
  */
 const COUCHES_TERRITORIALISABLES = new Set(['qpv']);
+/** Couches périmètres filtrées spatialement par le territoire recherché. */
+const COUCHES_PERIMETRES_FILTREES = new Set(['ti', 'crte', 'ami', 'amm', 'fabp', 'tec']);
 // ---------------------------------------------------------------------------
 // 5. TERRITOIRES
 // ---------------------------------------------------------------------------
@@ -219,7 +222,6 @@ const TYPE_LABELS = {
     arr:         'Arrondissement',   // ← nouveau
     crte:        'CRTE',             // ← nouveau
     massif:  'Massif',
-    france:  'France',
 };
 
 /**
@@ -336,3 +338,17 @@ const PANEL_W = 600;
 
 /** Rayon de base (px) des cercles concentriques sur la carte. */
 const RAYON_BASE = 5;
+
+/** Identifiants distincts des sites d'un programme pour une commune. */
+function idsSites(props, prog) {
+    if (prog === 'qpv') {
+        return String(props.id_qp ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    }
+    let ids = props.ids_par_programme;
+    if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch { ids = null; } }
+    const liste = (ids?.[`id_${prog}`] ?? [])
+        .flatMap(s => String(s).split(/\s*;\s*/))
+        .map(s => s.trim())
+        .filter(Boolean);
+    return [...new Set(liste)];
+}

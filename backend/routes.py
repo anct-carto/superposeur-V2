@@ -197,7 +197,7 @@ def qpv():
 # ---------------------------------------------------------------------------
 
 @app.get("/api/recherche")
-def recherche(q: str = "", types: str = "commune,epci,departement,region,arr,crte, massif, france"):
+def recherche(q: str = "", types: str = "commune,epci,departement,region,arr,crte,massif"):
     """
     Recherche textuelle dans les entités géographiques.
 
