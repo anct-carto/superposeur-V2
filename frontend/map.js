@@ -931,16 +931,50 @@ document.getElementById('btn-imprimer').addEventListener('click', async () => {
         drawHeader('Analyse statistique du territoire');
         drawFooter(2, 2, H2);
 
-        const chartsCanvas = await html2canvas(document.getElementById('panel-inner'), {
-            scale: 1, useCORS: true, logging: false, backgroundColor: '#ffffff',
+        // --- Capture des graphiques : contenu COMPLET, indépendant de la taille d'écran ---
+        const panelEl = document.getElementById('panel-inner');
+        const fullW = panelEl.scrollWidth;
+        const fullH = panelEl.scrollHeight;
+
+        const chartsCanvas = await html2canvas(panelEl, {
+            scale: 2,                 // meilleure netteté (on réduit ensuite dans le PDF)
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            width: fullW,
+            height: fullH,
+            windowWidth: Math.max(window.innerWidth, fullW),
+            windowHeight: Math.max(window.innerHeight, fullH),
+            scrollX: 0,
+            scrollY: 0,
+            onclone: (doc, el) => {
+                // Supprime tout ce qui peut couper le contenu (overflow, hauteur max, décalage du panneau)
+                let p = el;
+                while (p && p !== doc.body) {
+                    p.style.overflow = 'visible';
+                    p.style.maxHeight = 'none';
+                    p.style.height = 'auto';
+                    p.style.transform = 'none';
+                    p = p.parentElement;
+                }
+            },
         });
-        const chartsWmm = chartsCanvas.width * PX_TO_MM;
-        const chartsHmm = chartsCanvas.height * PX_TO_MM;
-        const maxW = W2 - 20, maxH = H2 - 35;
-        const chartScale = Math.min(1, maxW / chartsWmm, maxH / chartsHmm);
-        const finalW = chartsWmm * chartScale;
-        const finalH = chartsHmm * chartScale;
-        const offsetX = 10 + (maxW - finalW) / 2;
+
+        // Ratio réel de l'image capturée (indépendant de la taille d'écran)
+        const ratio = chartsCanvas.width / chartsCanvas.height;
+
+        // Zone disponible sur la page 2 + plafond de largeur pour des graphiques plus petits
+        const zoneW = W2 - 20;
+        const zoneH = H2 - 27 - 14;          // haut (27) + footer (≈14)
+        const LARGEUR_MAX_MM = 110;          // ← réduis cette valeur pour des graphiques encore plus petits
+
+        let finalW = Math.min(zoneW, LARGEUR_MAX_MM);
+        let finalH = finalW / ratio;
+        if (finalH > zoneH) {                // si trop haut, on réduit pour que tout rentre
+            finalH = zoneH;
+            finalW = finalH * ratio;
+        }
+        const offsetX = 10 + (zoneW - finalW) / 2;
 
         pdf.addImage(chartsCanvas.toDataURL('image/png'), 'PNG', offsetX, 27, finalW, finalH);
         pdf.setDrawColor(210, 210, 210);
