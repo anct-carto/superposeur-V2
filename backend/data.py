@@ -385,11 +385,9 @@ _SPECS_INDEX = [
     ("massif",         "geo_massif",          MONTAGNE_POLYGONE,        "niveau_montagne",  "niveau_montagne"),
 ]
 
-# Nombre maximum de résultats retournés par type
-_LIMITES_RECHERCHE = {
-    "commune": 10, "epci": 5, "departement": 5, "region": 5,
-    "arr": 5, "crte": 5, "massif": 10,  # ← nouveau
-}
+# Nombre maximum de résultats retournés (global, tous types confondus)
+_LIMITE_RECHERCHE = 15
+_TYPES_RECHERCHE = {"commune", "epci", "departement", "region", "arr", "crte", "massif"}
 
 
 def _construire_index() -> dict:
@@ -435,22 +433,24 @@ def rechercher_entites(q: str, types: list[str] | None = None) -> list[dict]:
         return []
 
     q_norm   = _norm(q)
-    types_ok = set(types) if types else set(_LIMITES_RECHERCHE)
+    types_ok = set(types) if types else _TYPES_RECHERCHE
     index    = _get_index()
     resultats = []
 
     for type_, entrees in index.items():
         if type_ not in types_ok:
             continue
-        n = 0
         for entree in entrees:
             if q_norm in entree["nom_norm"]:
-                resultats.append({k: entree[k] for k in ("nom", "code", "type", "bbox")})
-                n += 1
-                if n >= _LIMITES_RECHERCHE[type_]:
-                    break
+                resultats.append(entree)
 
-    return resultats
+    # Tri alphabétique strict (insensible à la casse et aux accents)
+    resultats.sort(key=lambda e: e["nom_norm"])
+
+    return [
+        {k: e[k] for k in ("nom", "code", "type", "bbox")}
+        for e in resultats[:_LIMITE_RECHERCHE]
+    ]
 
 
 # ---------------------------------------------------------------------------

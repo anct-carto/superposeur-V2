@@ -221,14 +221,24 @@
                 <!-- Titre du territoire sélectionné -->
                 <h2 id="territoire">Territoire sélectionné</h2>
 
-                <!-- Graphique 1 : nombre de programmes par programme -->
-                <h3>Nombre de communes adhérentes</h3>
-                <div class="chart-wrapper">
-                    <canvas id="chart-barres" role="img" aria-label="Graphique : nombre de programmes par type"></canvas>
+                <!-- Graphique 1 : communes lauréates / nombre de programmes et dispositifs (bascule) -->
+                <div class="chart-header">
+                    <h3 id="chart1-titre">Nombre de communes lauréates</h3>
+                    <button id="btn-switch-chart" type="button" title="Basculer entre les deux graphiques">
+                        <i data-lucide="arrow-left-right" aria-hidden="true"></i>
+                        <span>Programmes et dispositifs</span>
+                    </button>
+                </div>
+
+                <div id="wrap-barres" class="chart-wrapper">
+                    <canvas id="chart-barres" role="img" aria-label="Graphique : nombre de communes lauréates par programme"></canvas>
+                </div>
+                <div id="wrap-sites" class="chart-wrapper" hidden>
+                    <canvas id="chart-sites" role="img" aria-label="Graphique : nombre de programmes et dispositifs par programme"></canvas>
                 </div>
 
                 <!-- Graphique 2 : répartition typologique -->
-                <h3>Typologies</h3>
+                <h3>Classification des communes selon trois typologies</h3>
 
                 <!-- Sélecteur de grille typologique -->
                 <div id="typo-dropdown" class="dropdown">

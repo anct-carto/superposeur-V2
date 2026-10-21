@@ -28,6 +28,8 @@ const OPTIONS_COMMUNES = {
 
 let chartBarres   = null;
 let chartColonnes = null;
+let chartSites = null;
+let _modeGraphique = 'communes';   // 'communes' | 'sites'
 const _cacheTypologies = {};
 let _featuresEnCours = [];
 let _nomEnCours       = '';
@@ -65,6 +67,32 @@ function initCharts() {
             },
         },
     });
+
+    // Graphique 1 bis — Nombre de sites (mêmes options que le graphique 1)
+    chartSites = new Chart(document.getElementById('chart-sites'), {
+        type: 'bar',
+        data: {
+            labels:   [],
+            datasets: [{ data: [], backgroundColor: PALETTE, borderRadius: 3, borderWidth: 0 }],
+        },
+        options: {
+            ...OPTIONS_COMMUNES,
+            indexAxis: 'y',
+            plugins: { ...OPTIONS_COMMUNES.plugins, legend: { display: false } },
+            scales: {
+                x: {
+                    display: true,
+                    grid:    { color: '#f0f0f0' },
+                    border:  { display: false },
+                    ticks:   { font: { size: 10 }, color: '#888', maxTicksLimit: 5, precision: 0 },
+                },
+                y: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#444' } },
+            },
+        },
+    });
+
+// Bouton de bascule
+document.getElementById('btn-switch-chart').addEventListener('click', _basculerGraphique);
 
     // Graphique 2 — Colonnes empilées
     chartColonnes = new Chart(document.getElementById('chart-colonnes'), {
@@ -174,10 +202,62 @@ function _preparerProgrammes(features) {
     const trie = Object.entries(compteProg).sort((a, b) => b[1] - a[1]);
 
     return {
-        labels:   trie.map(([p]) => _decouperLabel(LABELS_PROGRAMMES[p] || p)),
+        labels:   trie.map(([p]) => _decouperLabel(libelleGraphique(p, 'communes'))),
         valeurs:  trie.map(([, v]) => v),
         couleurs: trie.map(([p]) => (PROGRAMMES_META[p] ?? {}).couleur ?? '#cccccc'),
     };
+}
+
+// Nombre de sites (programmes/dispositifs) par programme, dédupliqués sur le territoire.
+// Une commune avec 3 sites France services compte 3 ; un site rattaché à plusieurs
+// communes n'est compté qu'une fois.
+function _preparerSites(features) {
+    const sites = {};   // { prog: Set d'identifiants }
+
+    features.forEach(f => {
+        const p  = f.properties;
+        const lp = p.liste_programmes || [];
+
+        _progsDeFeature(f).forEach(prog => {
+            if (!PROGRAMMES_GRAPHIQUE.has(prog)) return;
+            if (!programmesActifs.has(prog)) return;
+
+            let ids = idsSites(p, prog);
+            if (!ids.length) {
+                // Pas d'identifiant exploitable : on compte les occurrences dans la commune
+                const n = prog === 'qpv' ? 1 : (lp.filter(x => x === prog).length || 1);
+                ids = Array.from({ length: n }, (_, k) => `${p.insee_com}#${k}`);
+            }
+            const set = (sites[prog] ??= new Set());
+            ids.forEach(id => set.add(id));
+        });
+    });
+
+    // Tri décroissant par nombre de sites
+    const trie = Object.entries(sites)
+        .map(([p, set]) => [p, set.size])
+        .sort((a, b) => b[1] - a[1]);
+
+
+    return {
+        labels:   trie.map(([p]) => _decouperLabel(libelleGraphique(p, 'sites'))),
+        valeurs:  trie.map(([, v]) => v),
+        couleurs: trie.map(([p]) => (PROGRAMMES_META[p] ?? {}).couleur ?? '#cccccc'),
+    };
+}
+
+function _basculerGraphique() {
+    _modeGraphique = _modeGraphique === 'communes' ? 'sites' : 'communes';
+    const sites = _modeGraphique === 'sites';
+
+    document.getElementById('wrap-barres').hidden = sites;
+    document.getElementById('wrap-sites').hidden  = !sites;
+    document.getElementById('chart1-titre').textContent =
+        sites ? 'Nombre de programmes et dispositifs' : 'Nombre de communes lauréates';
+    document.querySelector('#btn-switch-chart span').textContent =
+        sites ? 'Communes lauréates' : 'Programmes et dispositifs';
+
+    (sites ? chartSites : chartBarres)?.resize();
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +293,7 @@ async function _preparerTypologie(features) {
     );
 
     const datasets = progsPresents.map(prog => ({
-        label:           LABELS_PROGRAMMES[prog] || prog,
+        label:           libelleGraphique(prog, 'typologie'),
         data:            cfg.ordre.map(classe => comptage[classe][prog] || 0),
         backgroundColor: (PROGRAMMES_META[prog] ?? {}).couleur ?? '#cccccc',
         borderWidth:     0,
@@ -249,6 +329,13 @@ function updateCharts(data) {
         chartBarres.data.datasets[0].data = data.programmes.valeurs;
         chartBarres.data.datasets[0].backgroundColor = data.programmes.couleurs;
         chartBarres.update();
+    }
+
+    if (chartSites && data.sites) {
+    chartSites.data.labels           = data.sites.labels;
+    chartSites.data.datasets[0].data = data.sites.valeurs;
+    chartSites.data.datasets[0].backgroundColor = data.sites.couleurs;
+    chartSites.update();
     }
 
     if (chartColonnes && data.typologies) {
@@ -301,9 +388,10 @@ async function fetchDonneesTerritoire(code, type, nom) {
         _nomEnCours       = nom;
 
         const programmes = _preparerProgrammes(features);
+        const sites      = _preparerSites(features);
         const typologies = await _preparerTypologie(features);
 
-        updateCharts({ territoire: nom, programmes, typologies });
+        updateCharts({ territoire: nom, programmes, sites, typologies });
 
     } catch (err) {
         console.error('[charts.js] Erreur API :', err);
@@ -315,8 +403,9 @@ async function updateChartsWithActivePrograms() {
     
     try {
         const programmes = _preparerProgrammes(_featuresEnCours);
+        const sites      = _preparerSites(_featuresEnCours); 
         const typologies = await _preparerTypologie(_featuresEnCours);
-        updateCharts({ territoire: _nomEnCours, programmes, typologies });
+        updateCharts({ territoire: _nomEnCours, programmes, sites, typologies });
     } catch (err) {
         console.error('[charts.js] Erreur mise à jour programmes actifs :', err);
     }
@@ -324,6 +413,7 @@ async function updateChartsWithActivePrograms() {
 
 function resizeCharts() {
     chartBarres?.resize();
+    chartSites?.resize();
     chartColonnes?.resize();
 }
 

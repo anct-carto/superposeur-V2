@@ -13,6 +13,7 @@ const couleursParProg  = {};
 let   programmesActifs = new Set();
 let   filtreGeo        = null;
 const fondsActifs = new Set(['ign']);
+const _visibiliteIgn = {};   // id de couche du Plan IGN -> visibilité d'origine ('visible' / 'none')
 const _layersPointsTop = []; // identifiants des couches "points" à garder toujours au sommet
 const _cacheGeoJSON     = {};
 let   panelOpen = false;
@@ -25,17 +26,7 @@ let _communesFiltrees = null;        // null = aucun filtre (France entière)
 const map = new maplibregl.Map({
     container: 'map',
     preserveDrawingBuffer: true,
-    style: {
-        version: 8,
-        sources: {
-            ign: { type: 'raster', tiles: FONDS_CARTE.ign.tiles, tileSize: 256, attribution: FONDS_CARTE.ign.attribution },
-            satellite: { type: 'raster', tiles: FONDS_CARTE.satellite.tiles, tileSize: 256, attribution: FONDS_CARTE.satellite.attribution },
-        },
-        layers: [
-            { id: 'fond-ign', type: 'raster', source: 'ign', layout: { visibility: 'visible' } },
-            { id: 'fond-satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } },
-        ],
-    },
+    style: { version: 8, sources: {}, layers: [] },
     center: [2.35, 46.8],
     zoom: 5,
     maxZoom: 11,
@@ -151,6 +142,89 @@ function reconstruirePoints() {
 }
 
 // ---------------------------------------------------------------------------
+// FOND DE CARTE : Plan IGN vectoriel (grisé) + satellite raster
+// ---------------------------------------------------------------------------
+
+const RE_COULEUR = /^(#[0-9a-f]{3,8}|rgba?\(.+\)|hsla?\(.+\))$/i;
+const _ctxCouleur = document.createElement('canvas').getContext('2d');
+
+/** Convertit n'importe quelle couleur CSS valide en [r, g, b, a]. */
+function _rgbaDe(couleur) {
+    _ctxCouleur.fillStyle = couleur;
+    const v = _ctxCouleur.fillStyle;   // '#rrggbb' ou 'rgba(r, g, b, a)'
+    if (v[0] === '#') {
+        return [parseInt(v.slice(1, 3), 16), parseInt(v.slice(3, 5), 16), parseInt(v.slice(5, 7), 16), 1];
+    }
+    const m = v.match(/[\d.]+/g).map(Number);
+    return [m[0], m[1], m[2], m[3] ?? 1];
+}
+
+/** Rapproche une couleur de son équivalent gris (mix : 0 à 1). */
+function _griserCouleur(couleur, mix) {
+    const [r, g, b, a] = _rgbaDe(couleur);
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    const f = v => Math.round(v + (lum - v) * mix);
+    return `rgba(${f(r)},${f(g)},${f(b)},${a})`;
+}
+
+/** Applique fn à toutes les couleurs trouvées dans une valeur de style (simple ou expression). */
+function _transformerCouleurs(val, fn) {
+    if (typeof val === 'string') return RE_COULEUR.test(val.trim()) ? fn(val) : val;
+    if (Array.isArray(val)) return val.map(v => _transformerCouleurs(v, fn));
+    if (val && typeof val === 'object') {
+        return Object.fromEntries(Object.entries(val).map(([k, v]) => [k, _transformerCouleurs(v, fn)]));
+    }
+    return val;
+}
+
+async function _appliquerStyleBase() {
+    const vec = FONDS_CARTE.ignvec;
+    const style = await fetch(vec.style).then(r => r.json());
+
+    // 1. Sources vectorielles : schéma xyz obligatoire avec MapLibre
+    Object.values(style.sources).forEach(s => {
+        if (s.type === 'vector') { s.scheme = 'xyz'; s.attribution = vec.attribution; }
+    });
+
+    // 2. Masquage + désaturation des couches du Plan IGN vectoriel
+    style.layers.forEach(l => {
+        if (vec.masquer?.some(motif => new RegExp(motif, 'i').test(l.id))) {
+            l.layout = { ...l.layout, visibility: 'none' };
+        }
+        if (l.paint && vec.desaturation) {
+            Object.keys(l.paint).forEach(k => {
+                if (k.endsWith('-color')) {
+                    l.paint[k] = _transformerCouleurs(l.paint[k], c => _griserCouleur(c, vec.desaturation));
+                }
+            });
+        }
+        _visibiliteIgn[l.id] = l.layout?.visibility ?? 'visible';
+
+        // Le vectoriel n'est visible au départ que s'il est le fond actif
+        if (!fondsActifs.has('ignvec')) l.layout = { ...l.layout, visibility: 'none' };
+    });
+
+    // 3. Fonds raster (WMTS), placés sous le vectoriel
+    Object.entries(FONDS_CARTE).forEach(([cle, f]) => {
+        if (f.type !== 'raster') return;
+        style.sources[`fond-src-${cle}`] = {
+            type: 'raster', tiles: f.tiles, tileSize: 256, attribution: f.attribution,
+        };
+        style.layers.unshift({
+            id:     `fond-${cle}`,
+            type:   'raster',
+            source: `fond-src-${cle}`,
+            layout: { visibility: fondsActifs.has(cle) ? 'visible' : 'none' },
+        });
+    });
+
+    // 4. Charge le style et attend qu'il soit prêt
+    const pret = new Promise(resolve => map.once('style.load', resolve));
+    map.setStyle(style, { diff: false });
+    await pret;
+}
+
+// ---------------------------------------------------------------------------
 // INITIALISATION PRINCIPALE
 // ---------------------------------------------------------------------------
 
@@ -159,6 +233,7 @@ async function initApp() {
     const errorText = document.getElementById('error-text');
 
     try {
+        await _appliquerStyleBase();
         await fetch(`${API_URL}/api/init`).then(r => r.json());
         const { programmes } = await fetch(`${API_URL}/api/programmes`).then(r => r.json());
         const geojson = await fetch(`${API_URL}/api/communes`).then(r => r.json());
@@ -371,7 +446,7 @@ function construirePanneauCouches() {
 
     const titreFond = document.createElement('p');
     titreFond.className = 'legende-groupe';
-    titreFond.innerHTML = '<i data-lucide="map"></i>Fond de carte';
+    titreFond.innerHTML = '<i data-lucide="map"></i>Fonds de carte';
     panneau.appendChild(titreFond);
 
     Object.entries(FONDS_CARTE).forEach(([key, meta]) => {
@@ -422,7 +497,15 @@ function _ajouterSectionCouches(panneau, titre, icone, catalogue, chargerFn) {
 // ---------------------------------------------------------------------------
 
 function _toggleFond(cle, visible) {
-    map.setLayoutProperty(`fond-${cle}`, 'visibility', visible ? 'visible' : 'none');
+    if (FONDS_CARTE[cle].type === 'vecteur') {
+        Object.keys(_visibiliteIgn).forEach(id => {
+            if (map.getLayer(id)) {
+                map.setLayoutProperty(id, 'visibility', visible ? _visibiliteIgn[id] : 'none');
+            }
+        });
+    } else if (map.getLayer(`fond-${cle}`)) {
+        map.setLayoutProperty(`fond-${cle}`, 'visibility', visible ? 'visible' : 'none');
+    }
     visible ? fondsActifs.add(cle) : fondsActifs.delete(cle);
 }
 
@@ -745,8 +828,15 @@ async function _lancerRecherche() {
 function _afficherRésultats(résultats) {
     searchResults.innerHTML = '';
     if (!résultats.length) { searchResults.classList.remove('visible'); return; }
+
+    // Tri alphabétique, tous types de territoires confondus
+    // (insensible à la casse et aux accents, avec ordre numérique naturel : "Paris 2" avant "Paris 10")
+    const tries = [...résultats].sort((a, b) =>
+        a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base', numeric: true })
+    );
+
     const frag = document.createDocumentFragment();
-    résultats.forEach(r => {
+    tries.forEach(r => {
         const li = document.createElement('li');
         li.innerHTML = `${r.nom} <span>(${TYPE_LABELS[r.type] ?? r.type})</span>`;
         li.addEventListener('click', () => {

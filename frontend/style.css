@@ -438,10 +438,17 @@ nav > .dropdown > a:hover {
 }
 
 #legende {
-    max-height:      440px;
+    width:           min(400px, calc(100vw - 32px));      /* jamais plus large que l'écran */
+    max-height:      min(440px, calc(100vh - 240px));     /* laisse la place au header et aux boutons d'export */
+    justify-self:    start;
     overflow-y:      auto;
     scrollbar-width: thin;
     scrollbar-color: var(--color-border) transparent;
+}
+
+/* Petits écrans : légende plus compacte pour ne pas masquer la carte */
+@media (max-width: 1100px) {
+    #legende { width: min(300px, calc(100vw - 32px)); }
 }
 
 #panneau-couches {
@@ -526,6 +533,23 @@ nav > .dropdown > a:hover {
     color:       var(--color-text-muted);
 }
 
+/* Légende des programmes : libellés longs sur plusieurs lignes */
+#legende .legende-item {
+    align-items: flex-start;
+}
+
+#legende .legende-item input[type="checkbox"] {
+    margin-top: 2px;
+}
+
+#legende .legende-carre {
+    margin-top: 3px;
+}
+
+.legende-label {
+    flex:      1;
+    min-width: 0;
+}
 
 /* ============================================================
    11. BOUTONS ICÔNES (contrôles carte)
@@ -678,11 +702,56 @@ nav > .dropdown > a:hover {
 
 /* Les canvas doivent remplir leur wrapper */
 #chart-barres,
+#chart-sites,
 #chart-colonnes {
     width:  100% !important;
     height: 100% !important;
 }
 
+/* En-tête du graphique 1 : titre + bouton de bascule */
+.chart-header {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             12px;
+    border-bottom:   1px solid var(--color-border);
+    padding-bottom:  4px;
+}
+
+#panel-inner .chart-header h3 {
+    flex:           1;
+    border-bottom:  none;
+    padding-bottom: 0;
+}
+
+#btn-switch-chart {
+    display:       inline-flex;
+    align-items:   center;
+    gap:           6px;
+    flex-shrink:   0;
+    padding:       4px 8px;
+    font-family:   var(--font-main);
+    font-size:     var(--font-size-xs);
+    font-weight:   600;
+    color:         var(--color-accent);
+    background:    var(--color-bg);
+    border:        1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    cursor:        pointer;
+    white-space:   nowrap;
+    transition:    background var(--transition-fast), border-color var(--transition-fast);
+}
+
+#btn-switch-chart:hover {
+    background:   var(--color-bg-hover);
+    border-color: var(--color-accent);
+}
+
+#btn-switch-chart svg {
+    width:       14px;
+    height:      14px;
+    flex-shrink: 0;
+}
 
 /* ============================================================
    14. SÉLECTEUR DE TYPOLOGIE
@@ -773,12 +842,17 @@ nav > .dropdown > a:hover {
     transition:         border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-/* Aperçu — Plan IGN */
+/* Aperçu : Plan IGN (WMTS) */
 .fond-ign {
     background: linear-gradient(135deg, #c8dba0 0%, #e8e0c8 40%, #a0c0a0 70%, #d0c8a8 100%);
 }
 
-/* Aperçu — Orthophoto IGN */
+/* Aperçu : Plan IGN vectoriel (gris) */
+.fond-ignvec {
+    background: linear-gradient(135deg, #d9dbd6 0%, #ececea 40%, #c4c8c3 70%, #dedcd6 100%);
+}
+
+/* Aperçu : Orthophoto IGN */
 .fond-satellite {
     background: linear-gradient(135deg, #2d4a1e 0%, #3d5a2e 30%, #4a3820 60%, #2a3a18 100%);
 }

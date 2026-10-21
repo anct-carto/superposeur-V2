@@ -90,7 +90,7 @@ const PROGRAMMES_META = {
     cde:    { nom: "Cités de l'emploi",               couleur: '#2E86AB', groupe: 'Politique de la ville', type: 'cercle' },
     cite:   { nom: 'Cités éducatives',                couleur: '#E84855', groupe: 'Politique de la ville', type: 'cercle' },
     // Dans PROGRAMMES_META
-    qpv: { nom: 'Commune ayant au moins un quartier prioritaire de la ville', couleur: '#E1000F', groupe: 'Politique de la ville', type: 'cercle' },
+    qpv: { nom: 'Commune ayant au moins un quartier prioritaire de la politique de la ville', couleur: '#E1000F', groupe: 'Politique de la ville', type: 'cercle' },
     // --- Territoires, transition écologique ---
     ami:    { nom: 'Avenir montagne ingénierie',      couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_ami.geojson' },
     amm:    { nom: 'Avenir montagne mobilité',        couleur: '#327d48', groupe: 'Territoires, transition écologique', type: 'polygone', url: '../data/admin/polygone-4326_amm.geojson' },
@@ -130,6 +130,20 @@ const LABELS_PROGRAMMES = Object.fromEntries(
 );
 
 /**
+ * Libellés spécifiques à chaque graphique (surchargent LABELS_PROGRAMMES).
+ * Programmes absents → libellé standard de la légende.
+ */
+const LABELS_GRAPHIQUES = {
+    communes:  { qpv: 'Commune ayant au moins un QPV' },   // Nombre de communes lauréates
+    sites:     { qpv: 'QPV' },                             // Nombre de programmes et dispositifs
+    typologie: { qpv: 'Commune ayant au moins un QPV' },   // Classification selon trois typologies
+};
+
+function libelleGraphique(prog, graphique) {
+    return LABELS_GRAPHIQUES[graphique]?.[prog] ?? LABELS_PROGRAMMES[prog] ?? prog;
+}
+
+/**
  * Ensemble des clés de programmes affichables dans les graphiques.
  * NB : seuls les programmes de type "cercle" ont une valeur par commune
  * exploitable par charts.js (liste_programmes) — les polygones (ti, qpv,
@@ -154,7 +168,7 @@ const PROGRAMMES_COUCHES = {
     ami:  { nom: 'Avenir montagne ingénierie', couleur: '#327d48', url: '../data/admin/polygone-4326_ami.geojson'       },
     amm:  { nom: 'Avenir montagne mobilité',   couleur: '#327d48', url: '../data/admin/polygone-4326_amm.geojson'       },
     crte: { nom: 'CRTE',                       couleur: '#3ca331', url: '../data/admin/polygone-4326_crte.geojson'      },
-    qpv: { nom: 'Commune ayant au moins un quartier prioritaire', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
+    qpv: { nom: 'Commune ayant au moins un quartier prioritaire de la politique de la ville', couleur: '#E1000F', url: `${API_URL}/api/qpv` },
     tec:  { nom: "Territoires d'engagement",   couleur: '#7d5ba6', url: '../data/admin/polygone-4326_tec.geojson'       },
 };
 
@@ -251,6 +265,7 @@ const CHAMPS_GEO_PAR_TYPE = {
 const FONDS_CARTE = {
     ign: {
         nom:         'Plan IGN',
+        type:        'raster',
         tiles:       [
             'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0' +
             '&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png' +
@@ -258,8 +273,17 @@ const FONDS_CARTE = {
         ],
         attribution: '© IGN',
     },
+    ignvec: {
+        nom:          'Plan IGN gris',
+        type:         'vecteur',
+        style:        'https://data.geopf.fr/annexes/ressources/vectorTiles/styles/PLAN.IGN/gris.json',
+        attribution:  '© IGN',
+        desaturation: 0.85,
+        masquer:      [],
+    },
     satellite: {
         nom:         'Satellite IGN',
+        type:        'raster',
         tiles:       [
             'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0' +
             '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg' +
@@ -342,7 +366,7 @@ const RAYON_BASE = 5;
 /** Identifiants distincts des sites d'un programme pour une commune. */
 function idsSites(props, prog) {
     if (prog === 'qpv') {
-        return String(props.id_qp ?? '').split(',').map(s => s.trim()).filter(Boolean);
+        return String(props.id_qp ?? '').split(/\s*[;,]\s*/).map(s => s.trim()).filter(Boolean);
     }
     let ids = props.ids_par_programme;
     if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch { ids = null; } }
